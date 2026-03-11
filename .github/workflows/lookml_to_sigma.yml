@@ -31,6 +31,13 @@ jobs:
           cd "$LOOKML_DIR"
           rm -rf semantic_models
           dbtc convert-lookml
+          
+          # --- THE FIX: Rename .yaml to .yml ---
+          echo "Renaming .yaml to .yml..."
+          cd semantic_models
+          for f in *.yaml; do
+            [ -e "$f" ] && mv "$f" "${f%.yaml}.yml"
+          done
 
       - name: Generate stub semantic_manifest.json
         run: |
@@ -55,7 +62,7 @@ jobs:
           set -a; source ../../.env; set +a
           cp ../../.env .env
           
-          # --- THE FIX: We added OUTPUT_DIR here ---
+          # --- OUTPUT_DIR FIX ---
           export OUTPUT_DIR="./output"
           
           export SEMANTIC_MANIFEST_FILE="${{ github.workspace }}/out/semantic_manifest.json"
@@ -65,7 +72,7 @@ jobs:
           export TEST_FLAG=true
           export FROM_CI_CD=false
           
-          # Added a quick diagnostic check to print exactly what the runner sees in the folder
+          # Diagnostic check
           echo "Files in SOURCE_DIR:"
           ls -la "$SOURCE_DIR" || echo "Directory not found!"
           
