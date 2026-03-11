@@ -235,7 +235,7 @@ jobs:
 
       - name: Install Sigma converter dependencies
         working-directory: sigma_converter/sigma_converter
-        run: npm ci
+        run: npm install
 
       - name: Run dbt_semantics_to_sigma in TEST mode
         working-directory: sigma_converter/sigma_converter
