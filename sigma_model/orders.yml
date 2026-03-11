@@ -1,0 +1,33 @@
+dataModelId: 1380d8eb-dbbe-439c-9ccc-702a57fb81d3
+name: orders
+pages:
+  - id: "1"
+    name: orders
+    elements:
+      - id: orders_table_guid
+        name: id
+        description: id
+        kind: table
+        source:
+          name: id
+          kind: warehouse-table
+          connectionId: dummy-connection-id
+          path:
+            - MY_DB
+            - PUBLIC
+            - ORDERS
+        columns:
+          - id: order_date
+            name: order_date
+            formula: DateTrunc('day', [ORDERS/Order Date])
+          - id: customer_id
+            name: customer_id
+            formula: "[ORDERS/Customer Id]"
+          - id: orders__id
+            name: orders__id
+            formula: "[orders/Id]"
+        filters: []
+        folders: []
+        metrics: []
+        relationships: []
+        joins: []
