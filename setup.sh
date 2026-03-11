@@ -16,107 +16,26 @@ via the dbt Semantic Layer, using only:
 
 No dbt profile or warehouse credentials are required. The pipeline runs in **TEST mode**,
 so it does **not** make real Sigma API calls by default.
-
-## How it works
-
-1. **LookML → dbt semantic YAML**
-
-   The GitHub Actions workflow runs:
-
-   - `dbtc convert-lookml` from the `lookml/` directory
-   - This creates `lookml/semantic_models/*.yml` (dbt Semantic Layer models + metrics)
-
-2. **Semantic YAML → stub semantic_manifest.json**
-
-   The script `tools/generate_semantic_manifest.py`:
-
-   - Reads all `semantic_models/*.yml`
-   - Uses `.env` to derive physical table names (database/schema/prefix/suffix)
-   - Writes a minimal `out/semantic_manifest.json` matching dbt’s semantic manifest shape
-
-3. **Semantic Layer → Sigma Data Model specs (TEST mode)**
-
-   The workflow:
-
-   - Clones `sigmacomputing/dbt_semantics_to_sigma`
-   - Runs `node src/main.js` in TEST mode:
-     - `SOURCE_DIR` = `lookml/semantic_models`
-     - `SEMANTIC_MANIFEST_FILE` = `out/semantic_manifest.json`
-     - `TEST_FLAG=true` so no real Sigma API calls are made
-   - Writes Sigma Data Model specs to `sigma_converter/sigma_converter/sigma_model/*.yml`
-
-## Getting started
-
-1. Edit **`.env`** to set:
-   - `MANIFEST_DATABASE`
-   - `MANIFEST_SCHEMA`
-   - optional `MANIFEST_TABLE_PREFIX` / `MANIFEST_TABLE_SUFFIX`
-
-2. Put your LookML project in **`lookml/`**.
-
-3. Commit and push to GitHub.
-
-4. In GitHub, run the **“LookML → Sigma (TEST mode, no DB, no Sigma API)”** workflow.
-
-5. Inspect generated Sigma model specs under:
-
-   `sigma_converter/sigma_converter/sigma_model/`
-
-When you’re confident in the specs, you can disable TEST mode by setting
-`TEST_FLAG=false` in `.env` and letting the converter talk to Sigma’s APIs.
 EOF
 
 # ---------- .env ----------
 cat > .env << 'EOF'
-# --- Paths (all relative to repo root) ---
-
-# Root of your LookML project. The workflow will run dbtc convert-lookml from here.
 LOOKML_DIR=lookml
-
-# Where dbt-converter will write semantic models. This must match what dbtc does:
-# it will create "semantic_models/" inside LOOKML_DIR.
 SEMANTIC_MODELS_DIR=lookml/semantic_models
-
-# Where we write the stub semantic_manifest.json
 SEMANTIC_MANIFEST_FILE=out/semantic_manifest.json
-
-# --- How to derive physical table names for each semantic model ---
-# The semantic_manifest.json only needs database, schema, table names so that
-# Prashant's converter can build Sigma "warehouse-table" paths.
-#
-# For each semantic model name N, we will use:
-#   TABLE_NAME = (MANIFEST_TABLE_PREFIX + N + MANIFEST_TABLE_SUFFIX).upper()
-#
-# Example: if N = "orders", prefix="STG_", suffix="_V" => STG_ORDERS_V
-
 MANIFEST_DATABASE=MY_DB
 MANIFEST_SCHEMA=PUBLIC
 MANIFEST_TABLE_PREFIX=
 MANIFEST_TABLE_SUFFIX=
-
-# --- Sigma converter env (can be dummy while TEST_FLAG=true) ---
-# These are required by the converter, but will only be used in placeholder
-# functions while TEST_FLAG=true.
-
 API_URL=https://api.sigmacomputing.com/v2
 SIGMA_DOMAIN=my-org.sigmacomputing.com
 API_CLIENT_ID=dummy-client-id
 API_SECRET=dummy-secret
 CONNECTION_ID=dummy-connection-id
 SIGMA_FOLDER_ID=dummy-folder-id
-
-# --- Converter behavior ---
-# Mode is "initial" for the first full run. You can later change to "update"
-# if you want to mirror the dbt_semantics_to_sigma update mode behavior.
 MODE=initial
-
-# Must match the "user-friendly column names" setting on your Sigma connection
 USER_FRIENDLY_COLUMN_NAMES=true
-
-# SAFETY: keep test mode on; converter will not make real Sigma API calls.
 TEST_FLAG=true
-
-# SAFETY: do not commit/push from inside the converter.
 FROM_CI_CD=false
 EOF
 
@@ -126,8 +45,7 @@ cat > tools/generate_semantic_manifest.py << 'EOF'
 import os
 import json
 import glob
-
-import yaml  # installed via pyyaml in the workflow
+import yaml
 
 def main():
     semantic_dir = os.environ.get("SEMANTIC_MODELS_DIR", "lookml/semantic_models")
@@ -140,7 +58,6 @@ def main():
 
     semantic_models = []
 
-    # Collect all semantic model YAMLs emitted by dbt-converter
     yaml_paths = glob.glob(os.path.join(semantic_dir, "*.yml")) + \
                  glob.glob(os.path.join(semantic_dir, "*.yaml"))
 
@@ -153,7 +70,6 @@ def main():
             if not name:
                 continue
 
-            # Derive physical table name from env + semantic model name
             table = (prefix + name + suffix).upper()
 
             semantic_models.append({
@@ -176,7 +92,38 @@ if __name__ == "__main__":
 EOF
 chmod +x tools/generate_semantic_manifest.py
 
-# ---------- requirements.txt (Added for Caching & Version Pinning) ----------
+# ---------- tools/patch_semantic_models.py (THE NEW FIX) ----------
+cat > tools/patch_semantic_models.py << 'EOF'
+#!/usr/bin/env python3
+import glob
+import yaml
+
+for filepath in glob.glob("lookml/semantic_models/*.yml"):
+    with open(filepath, "r") as f:
+        data = yaml.safe_load(f) or {}
+
+    modified = False
+    for sm in data.get("semantic_models", []):
+        entities = sm.setdefault("entities", [])
+        has_primary = any(e.get("type") == "primary" for e in entities)
+
+        if not has_primary:
+            # Add 'id' as a primary entity so Sigma can join tables
+            entities.append({"name": "id", "type": "primary"})
+            modified = True
+
+            # Remove 'id' from dimensions to avoid dbt duplicate name errors
+            dims = sm.get("dimensions", [])
+            sm["dimensions"] = [d for d in dims if d.get("name") != "id"]
+
+    if modified:
+        with open(filepath, "w") as f:
+            yaml.dump(data, f, sort_keys=False)
+        print(f"Patched {filepath}: Upgraded 'id' to primary entity.")
+EOF
+chmod +x tools/patch_semantic_models.py
+
+# ---------- requirements.txt ----------
 cat > requirements.txt << 'EOF'
 numpy<2
 dbt-core==1.5.*
@@ -220,12 +167,16 @@ jobs:
           rm -rf semantic_models
           dbtc convert-lookml
           
-          # --- THE FIX: Rename .yaml to .yml ---
+          # Rename .yaml to .yml
           echo "Renaming .yaml to .yml..."
           cd semantic_models
           for f in *.yaml; do
             [ -e "$f" ] && mv "$f" "${f%.yaml}.yml"
           done
+          
+          cd ../..
+          # Run the new patch script to fix the primary entities
+          python tools/patch_semantic_models.py
 
       - name: Generate stub semantic_manifest.json
         run: |
@@ -250,19 +201,13 @@ jobs:
           set -a; source ../../.env; set +a
           cp ../../.env .env
           
-          # --- OUTPUT_DIR FIX ---
           export OUTPUT_DIR="./output"
-          
           export SEMANTIC_MANIFEST_FILE="${{ github.workspace }}/out/semantic_manifest.json"
           export SOURCE_DIR="${{ github.workspace }}/lookml/semantic_models"
           export SIGMA_MODEL_DIR="./sigma_model"
           export DAG_FILE="./output/dag.json"
           export TEST_FLAG=true
           export FROM_CI_CD=false
-          
-          # Diagnostic check
-          echo "Files in SOURCE_DIR:"
-          ls -la "$SOURCE_DIR" || echo "Directory not found!"
           
           node src/main.js
 
@@ -346,25 +291,17 @@ view: customers {
 }
 EOF
 
-echo "Project scaffold created. Next steps:"
-echo "1) Edit .env with your DB/SCHEMA and naming."
-echo "2) Initialize git, commit, and push to GitHub."
-echo "3) Run the 'LookML → Sigma (TEST mode, no DB, no Sigma API)' workflow."
-
 # ---------- Git Initialization & Force Push ----------
 echo "Initializing Git repository and force-pushing to GitHub..."
 
 git init
 git add .
-# The '|| true' keeps the script running even if nothing changed
-git commit -m "Rapid dev iteration" || true 
+git commit -m "Patch primary entities for Sigma converter" || true 
 git branch -M main
 
-# Forcibly remove the origin if it's in the way (silencing the error if it isn't), then add it fresh
 git remote remove origin 2>/dev/null || true
 git remote add origin https://github.com/gabrieljonessigmacomputing/lookml_to_dbt_to_sigma.git
 
-# Nuke and pave the GitHub repo with whatever is in this local folder right now
 git push -u origin main --force
 
 echo "Done! Code is live and the GitHub Action should trigger."

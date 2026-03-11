@@ -2,8 +2,7 @@
 import os
 import json
 import glob
-
-import yaml  # installed via pyyaml in the workflow
+import yaml
 
 def main():
     semantic_dir = os.environ.get("SEMANTIC_MODELS_DIR", "lookml/semantic_models")
@@ -16,7 +15,6 @@ def main():
 
     semantic_models = []
 
-    # Collect all semantic model YAMLs emitted by dbt-converter
     yaml_paths = glob.glob(os.path.join(semantic_dir, "*.yml")) + \
                  glob.glob(os.path.join(semantic_dir, "*.yaml"))
 
@@ -29,7 +27,6 @@ def main():
             if not name:
                 continue
 
-            # Derive physical table name from env + semantic model name
             table = (prefix + name + suffix).upper()
 
             semantic_models.append({
