@@ -1,0 +1,4 @@
+numpy<2
+dbt-core==1.5.*
+pyyaml
+git+https://github.com/dbt-labs/dbt-converter.git@master

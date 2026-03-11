@@ -176,6 +176,14 @@ if __name__ == "__main__":
 EOF
 chmod +x tools/generate_semantic_manifest.py
 
+# ---------- requirements.txt (Added for Caching & Version Pinning) ----------
+cat > requirements.txt << 'EOF'
+numpy<2
+dbt-core==1.5.*
+pyyaml
+git+https://github.com/dbt-labs/dbt-converter.git@master
+EOF
+
 # ---------- .github/workflows/lookml_to_sigma.yml ----------
 cat > .github/workflows/lookml_to_sigma.yml << 'EOF'
 name: LookML → Sigma (TEST mode, no DB, no Sigma API)
@@ -194,115 +202,57 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Ensure output directory exists
-        run: |
-          mkdir -p out
+        run: mkdir -p out
 
-      # ----------------------------------------------------
-      # 1) LookML → dbt semantic models (YAML only)
-      # ----------------------------------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
+          cache: 'pip' # <--- THIS ENABLES CACHING SO IT INSTALLS FASTER NEXT TIME
 
-      - name: Install dbt converter + YAML lib
-        run: |
-          # dbt-core for the converter, pyyaml for our manifest script
-          pip install "dbt-core==1.5.*" pyyaml
-
-          # Install dbt-converter directly from GitHub (provides the `dbtc` CLI)
-          pip install "git+https://github.com/dbt-labs/dbt-converter.git@master"
+      - name: Install dependencies
+        run: pip install -r requirements.txt # <--- Uses the file with numpy<2 pinned
 
       - name: Run LookML → dbt semantic conversion
         run: |
-          set -a
-          source .env
-          set +a
-
+          set -a; source .env; set +a
           cd "$LOOKML_DIR"
-
-          # Clean previous semantic_models, if any
           rm -rf semantic_models
-
-          # This creates semantic_models/*.yml based only on LookML.
           dbtc convert-lookml
 
-          echo "Generated semantic models under $LOOKML_DIR/semantic_models:"
-          ls -R semantic_models
-
-      # ----------------------------------------------------
-      # 2) Stub semantic_manifest.json (no dbt/profile)
-      # ----------------------------------------------------
       - name: Generate stub semantic_manifest.json
         run: |
-          set -a
-          source .env
-          set +a
-
+          set -a; source .env; set +a
           python tools/generate_semantic_manifest.py
 
-          echo "semantic_manifest.json contents:"
-          cat "$SEMANTIC_MANIFEST_FILE"
-
-      # ----------------------------------------------------
-      # 3) dbt semantics → Sigma specs (TEST_FLAG=true)
-      # ----------------------------------------------------
       - name: Set up Node for Sigma converter
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Clone Sigma dbt_semantics_to_sigma
-        run: |
-          git clone --depth 1 https://github.com/sigmacomputing/dbt_semantics_to_sigma.git sigma_converter
+        run: git clone --depth 1 https://github.com/sigmacomputing/dbt_semantics_to_sigma.git sigma_converter
 
       - name: Install Sigma converter dependencies
         working-directory: sigma_converter/sigma_converter
-        run: |
-          npm ci
+        run: npm ci
 
-      - name: Run dbt_semantics_to_sigma in TEST mode (no Sigma API calls)
+      - name: Run dbt_semantics_to_sigma in TEST mode
         working-directory: sigma_converter/sigma_converter
         run: |
-          # Load env for behavior flags and naming
-          set -a
-          source ../../.env
-          set +a
-
-          # Make the converter see the same .env at its expected location:
-          # convert_semantics.js does `dotenv.config({ path: '../../../.env' })`,
-          # so we copy our root .env here.
+          set -a; source ../../.env; set +a
           cp ../../.env .env
-
-          # Use absolute paths for manifest + semantic models
           export SEMANTIC_MANIFEST_FILE="${{ github.workspace }}/out/semantic_manifest.json"
           export SOURCE_DIR="${{ github.workspace }}/lookml/semantic_models"
-
-          # Where to write Sigma model specs
           export SIGMA_MODEL_DIR="./sigma_model"
           export DAG_FILE="./output/dag.json"
-
-          # Safety: stay in test mode, avoid CI/CD side effects
           export TEST_FLAG=true
           export FROM_CI_CD=false
-
-          echo "Running dbt_semantics_to_sigma with:"
-          echo "  SOURCE_DIR=$SOURCE_DIR"
-          echo "  SEMANTIC_MANIFEST_FILE=$SEMANTIC_MANIFEST_FILE"
-          echo "  TEST_FLAG=$TEST_FLAG"
-          echo "  FROM_CI_CD=$FROM_CI_CD"
-
           node src/main.js
 
-      - name: List generated Sigma model specs (sigma_model/)
+      - name: List generated Sigma model specs
         working-directory: sigma_converter/sigma_converter
-        run: |
-          echo "Generated Sigma model specs (from TEST mode):"
-          if [ -d sigma_model ]; then
-            ls -R sigma_model
-          else
-            echo "No sigma_model directory created."
-          fi
+        run: ls -R sigma_model || echo "No sigma_model directory created."
 EOF
 
 # ---------- lookml/ecommerce.model.lkml ----------
