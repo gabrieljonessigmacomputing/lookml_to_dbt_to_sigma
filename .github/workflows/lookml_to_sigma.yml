@@ -20,10 +20,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
-          cache: 'pip' # <--- THIS ENABLES CACHING SO IT INSTALLS FASTER NEXT TIME
+          cache: 'pip'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt # <--- Uses the file with numpy<2 pinned
+        run: pip install -r requirements.txt
 
       - name: Run LookML → dbt semantic conversion
         run: |
@@ -54,12 +54,21 @@ jobs:
         run: |
           set -a; source ../../.env; set +a
           cp ../../.env .env
+          
+          # --- THE FIX: We added OUTPUT_DIR here ---
+          export OUTPUT_DIR="./output"
+          
           export SEMANTIC_MANIFEST_FILE="${{ github.workspace }}/out/semantic_manifest.json"
           export SOURCE_DIR="${{ github.workspace }}/lookml/semantic_models"
           export SIGMA_MODEL_DIR="./sigma_model"
           export DAG_FILE="./output/dag.json"
           export TEST_FLAG=true
           export FROM_CI_CD=false
+          
+          # Added a quick diagnostic check to print exactly what the runner sees in the folder
+          echo "Files in SOURCE_DIR:"
+          ls -la "$SOURCE_DIR" || echo "Directory not found!"
+          
           node src/main.js
 
       - name: List generated Sigma model specs
