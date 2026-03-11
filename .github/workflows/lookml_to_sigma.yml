@@ -9,6 +9,10 @@ jobs:
   lookml_to_sigma:
     runs-on: ubuntu-latest
 
+    # This line allows the GitHub Action bot to push code back to your repo
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -40,7 +44,6 @@ jobs:
           done
           
           cd ../..
-          # Run the new patch script to fix the primary entities
           python tools/patch_semantic_models.py
 
       - name: Generate stub semantic_manifest.json
@@ -79,3 +82,18 @@ jobs:
       - name: List generated Sigma model specs
         working-directory: sigma_converter/sigma_converter
         run: ls -R sigma_model || echo "No sigma_model directory created."
+
+      # --- THE NEW FIX: PUSH FILES BACK TO REPO ---
+      - name: Commit and push generated Sigma models
+        run: |
+          # Pull the generated models out of the converter tool and into the main repo folder
+          cp -r sigma_converter/sigma_converter/sigma_model ./sigma_model
+          
+          # Configure Git as the GitHub Actions bot
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Add, commit, and push!
+          git add sigma_model/
+          git commit -m "Auto-generated Sigma models" || echo "No changes to commit"
+          git push
