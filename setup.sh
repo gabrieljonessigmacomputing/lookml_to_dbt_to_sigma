@@ -1,4 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
 mkdir -p lookml tools .github/workflows out
+
+# ---------- README.md ----------
+cat > README.md << 'EOF'
+# LookML → dbt Semantic Layer → Sigma (TEST mode)
+
+This repo is a starter project to translate LookML modeling into Sigma Data Models
+via the dbt Semantic Layer, using only:
+
+- LookML files in `lookml/`
+- A simple `.env` configuration
+- A GitHub Actions workflow
+
+No dbt profile or warehouse credentials are required. The pipeline runs in **TEST mode**,
+so it does **not** make real Sigma API calls by default.
+
+## How it works
+
+1. **LookML → dbt semantic YAML**
+
+   The GitHub Actions workflow runs:
+
+   - `dbtc convert-lookml` from the `lookml/` directory
+   - This creates `lookml/semantic_models/*.yml` (dbt Semantic Layer models + metrics)
+
+2. **Semantic YAML → stub semantic_manifest.json**
+
+   The script `tools/generate_semantic_manifest.py`:
+
+   - Reads all `semantic_models/*.yml`
+   - Uses `.env` to derive physical table names (database/schema/prefix/suffix)
+   - Writes a minimal `out/semantic_manifest.json` matching dbt’s semantic manifest shape
+
+3. **Semantic Layer → Sigma Data Model specs (TEST mode)**
+
+   The workflow:
+
+   - Clones `sigmacomputing/dbt_semantics_to_sigma`
+   - Runs `node src/main.js` in TEST mode:
+     - `SOURCE_DIR` = `lookml/semantic_models`
+     - `SEMANTIC_MANIFEST_FILE` = `out/semantic_manifest.json`
+     - `TEST_FLAG=true` so no real Sigma API calls are made
+   - Writes Sigma Data Model specs to `sigma_converter/sigma_converter/sigma_model/*.yml`
+
+## Getting started
+
+1. Edit **`.env`** to set:
+   - `MANIFEST_DATABASE`
+   - `MANIFEST_SCHEMA`
+   - optional `MANIFEST_TABLE_PREFIX` / `MANIFEST_TABLE_SUFFIX`
+
+2. Put your LookML project in **`lookml/`**.
+
+3. Commit and push to GitHub.
+
+4. In GitHub, run the **“LookML → Sigma (TEST mode, no DB, no Sigma API)”** workflow.
+
+5. Inspect generated Sigma model specs under:
+
+   `sigma_converter/sigma_converter/sigma_model/`
+
+When you’re confident in the specs, you can disable TEST mode by setting
+`TEST_FLAG=false` in `.env` and letting the converter talk to Sigma’s APIs.
+EOF
 
 # ---------- .env ----------
 cat > .env << 'EOF'
@@ -137,11 +203,15 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.10'
 
       - name: Install dbt converter + YAML lib
         run: |
-          pip install "dbt-core==1.5.*" dbt-metrics-converter pyyaml
+          # dbt-core for the converter, pyyaml for our manifest script
+          pip install "dbt-core==1.5.*" pyyaml
+
+          # Install dbt-converter directly from GitHub (provides the `dbtc` CLI)
+          pip install "git+https://github.com/dbt-labs/dbt-converter.git@master"
 
       - name: Run LookML → dbt semantic conversion
         run: |
@@ -194,7 +264,7 @@ jobs:
       - name: Run dbt_semantics_to_sigma in TEST mode (no Sigma API calls)
         working-directory: sigma_converter/sigma_converter
         run: |
-          # Load env for path + naming config
+          # Load env for behavior flags and naming
           set -a
           source ../../.env
           set +a
@@ -204,10 +274,11 @@ jobs:
           # so we copy our root .env here.
           cp ../../.env .env
 
-          # Wire converter paths and behavior via environment variables,
-          # matching what action.yml in that repo expects.
-          export SEMANTIC_MANIFEST_FILE="$SEMANTIC_MANIFEST_FILE"
-          export SOURCE_DIR="$SEMANTIC_MODELS_DIR"
+          # Use absolute paths for manifest + semantic models
+          export SEMANTIC_MANIFEST_FILE="${{ github.workspace }}/out/semantic_manifest.json"
+          export SOURCE_DIR="${{ github.workspace }}/lookml/semantic_models"
+
+          # Where to write Sigma model specs
           export SIGMA_MODEL_DIR="./sigma_model"
           export DAG_FILE="./output/dag.json"
 
@@ -308,3 +379,8 @@ view: customers {
   }
 }
 EOF
+
+echo "Project scaffold created. Next steps:"
+echo "1) Edit .env with your DB/SCHEMA and naming."
+echo "2) Initialize git, commit, and push to GitHub."
+echo "3) Run the 'LookML → Sigma (TEST mode, no DB, no Sigma API)' workflow."
