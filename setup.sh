@@ -385,20 +385,20 @@ echo "1) Edit .env with your DB/SCHEMA and naming."
 echo "2) Initialize git, commit, and push to GitHub."
 echo "3) Run the 'LookML → Sigma (TEST mode, no DB, no Sigma API)' workflow."
 
-# ---------- Git Initialization & Push ----------
-echo "Initializing Git repository and pushing to GitHub..."
+# ---------- Git Initialization & Force Push ----------
+echo "Initializing Git repository and force-pushing to GitHub..."
 
 git init
 git add .
-git commit -m "Initial LookML → Sigma starter"
+# The '|| true' keeps the script running even if nothing changed
+git commit -m "Rapid dev iteration" || true 
 git branch -M main
+
+# Forcibly remove the origin if it's in the way (silencing the error if it isn't), then add it fresh
+git remote remove origin 2>/dev/null || true
 git remote add origin https://github.com/gabrieljonessigmacomputing/lookml_to_dbt_to_sigma.git
 
-# Safe push:
+# Nuke and pave the GitHub repo with whatever is in this local folder right now
 git push -u origin main --force
 
-# If you absolutely need to overwrite the remote history every time this runs, 
-# uncomment the line below and delete the one above. Use with caution!
-# git push -u origin main --force
-
-echo "Done! Your starter project is live."
+echo "Done! Code is live and the GitHub Action should trigger."
