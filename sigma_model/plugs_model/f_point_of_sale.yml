@@ -1,0 +1,45 @@
+dataModelId: ff139601-fcab-4ab1-8789-730ce48c1fe0
+name: f_point_of_sale
+pages:
+  - id: "1"
+    name: f_point_of_sale
+    elements:
+      - id: f_point_of_sale_table_guid
+        name: id
+        description: id
+        kind: table
+        source:
+          name: id
+          kind: warehouse-table
+          connectionId: dummy-connection-id
+          path:
+            - MY_DB
+            - PUBLIC
+            - F_POINT_OF_SALE
+        columns:
+          - id: sales_quantity
+            name: sales_quantity
+            formula: "[F_POINT_OF_SALE/Sales Quantity]"
+          - id: sales_amount
+            name: sales_amount
+            formula: "[F_POINT_OF_SALE/Sales Amount]"
+          - id: cost_amount
+            name: cost_amount
+            formula: "[F_POINT_OF_SALE/Cost Amount]"
+          - id: f_point_of_sale__id
+            name: f_point_of_sale__id
+            formula: "[id]"
+          - id: f_point_of_sale__f_sales
+            name: f_point_of_sale__f_sales
+            formula: "[order_number]"
+          - id: f_point_of_sale__d_product
+            name: f_point_of_sale__d_product
+            formula: "[product_key]"
+        filters: []
+        folders: []
+        metrics:
+          - id: row_count
+            name: row_count
+            formula: count([undefined])
+        relationships: []
+        joins: []

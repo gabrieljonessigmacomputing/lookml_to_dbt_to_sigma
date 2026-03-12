@@ -1,0 +1,44 @@
+{
+  "semantic_models": [
+    {
+      "name": "d_store",
+      "node_relation": {
+        "database": "MY_DB",
+        "schema_name": "PUBLIC",
+        "relation_name": "MY_DB.PUBLIC.D_STORE"
+      }
+    },
+    {
+      "name": "f_point_of_sale",
+      "node_relation": {
+        "database": "MY_DB",
+        "schema_name": "PUBLIC",
+        "relation_name": "MY_DB.PUBLIC.F_POINT_OF_SALE"
+      }
+    },
+    {
+      "name": "d_customer",
+      "node_relation": {
+        "database": "MY_DB",
+        "schema_name": "PUBLIC",
+        "relation_name": "MY_DB.PUBLIC.D_CUSTOMER"
+      }
+    },
+    {
+      "name": "d_product",
+      "node_relation": {
+        "database": "MY_DB",
+        "schema_name": "PUBLIC",
+        "relation_name": "MY_DB.PUBLIC.D_PRODUCT"
+      }
+    },
+    {
+      "name": "f_sales",
+      "node_relation": {
+        "database": "MY_DB",
+        "schema_name": "PUBLIC",
+        "relation_name": "MY_DB.PUBLIC.F_SALES"
+      }
+    }
+  ]
+}
