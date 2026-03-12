@@ -1,4 +1,4 @@
-name: LookML → Sigma (Multi-Model TEST mode)
+name: LookML → Sigma (JSON Only Mode)
 
 on:
   push:
@@ -79,11 +79,12 @@ jobs:
             echo "3. Generating Semantic Manifest..."
             python tools/generate_semantic_manifest.py "$SEMANTIC_MODELS_DIR" "$SEMANTIC_MANIFEST_FILE"
             
-            echo "4. Translating via Node Converter..."
+            echo "4. Translating via Node Converter (Isolating output)..."
             (
               cd sigma_converter/sigma_converter
               export OUTPUT_DIR="./output_$model_name"
-              export SIGMA_MODEL_DIR="../../sigma_model/$model_name"
+              # We point the node converter's Sigma dump to a temp directory so it doesn't pollute your real folder with YAMLs
+              export SIGMA_MODEL_DIR="../../out/temp_yaml_dump/$model_name"
               export DAG_FILE="./output_$model_name/dag.json"
               export SOURCE_DIR="${{ github.workspace }}/$SEMANTIC_MODELS_DIR"
               export SEMANTIC_MANIFEST_FILE="${{ github.workspace }}/out/${model_name}_manifest.json"
@@ -92,13 +93,16 @@ jobs:
             )
 
             echo "5. Generating UNIFIED Sigma JSON with Explore Relationships..."
+            # This points exactly to sigma_model/ so it is the ONLY file generated here.
             python tools/build_sigma_explore_json.py "$CURRENT_LOOKML_DIR" "sigma_model/$model_name"
           done
 
-      - name: Commit and push generated Sigma models
+      - name: Commit and push strictly generated JSON
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add sigma_model/ out/
-          git commit -m "Auto-generated Unified Sigma Data Models with Explore relationships" || echo "No changes to commit"
+          
+          # Only add the sigma_model directory to ensure NO YAMLs are committed
+          git add sigma_model/
+          git commit -m "Auto-generated Unified JSON Sigma Data Models" || echo "No changes to commit"
           git push

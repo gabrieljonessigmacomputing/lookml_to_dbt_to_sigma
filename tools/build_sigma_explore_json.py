@@ -18,6 +18,10 @@ def main():
     lookml_dir = sys.argv[1] if len(sys.argv) > 1 else "lookml"
     output_dir = sys.argv[2] if len(sys.argv) > 2 else "sigma_model"
     
+    # Extract defaults from env
+    env_db = os.environ.get("MANIFEST_DATABASE", "RETAIL")
+    env_schema = os.environ.get("MANIFEST_SCHEMA", "PLUGS_ELECTRONICS")
+
     views = {}
     explores = {}
 
@@ -45,12 +49,24 @@ def main():
         def add_element(v_name):
             if v_name not in elements:
                 view_def = views.get(v_name, {})
+                
+                # Fully qualify the table path using .env defaults if necessary
                 table_name = view_def.get("sql_table_name", v_name).strip(";")
-                path = [p.replace('"', '').strip() for p in table_name.split(".")]
+                path_parts = [p.replace('"', '').replace('`', '').strip() for p in table_name.split(".")]
+                
+                if len(path_parts) == 1:
+                    path = [env_db, env_schema, path_parts[0]]
+                elif len(path_parts) == 2:
+                    path = [env_db, path_parts[0], path_parts[1]]
+                else:
+                    path = path_parts
                 
                 columns = []
-                for dim in view_def.get("dimensions", []):
+                # Grab both standard dimensions and dimension groups (like timeframes)
+                all_dims = view_def.get("dimensions", []) + view_def.get("dimension_groups", [])
+                for dim in all_dims:
                     columns.append({"id": dim["name"], "formula": dim.get("sql", f"[{dim['name']}]")})
+                
                 for meas in view_def.get("measures", []):
                     columns.append({"id": meas["name"], "formula": meas.get("sql", f"[{meas['name']}]")})
 
@@ -78,7 +94,6 @@ def main():
             if join_parts:
                 t1, f1, t2, f2 = join_parts
                 
-                # Ensure elements exist
                 add_element(t1)
                 add_element(t2)
                 
@@ -102,7 +117,7 @@ def main():
         out_path = os.path.join(output_dir, f"{explore_name}_unified_model.json")
         with open(out_path, "w") as f:
             json.dump(sigma_model, f, indent=2)
-        print(f"Generated unified Sigma Explore Model with relationships: {out_path}")
+        print(f"Generated strictly formatted JSON Sigma Data Model: {out_path}")
 
 if __name__ == "__main__":
     main()

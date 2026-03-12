@@ -22,8 +22,8 @@ fi
 # ---------- .env ----------
 cat > .env << 'EOF'
 LOOKML_DIR=lookml
-MANIFEST_DATABASE=MY_DB
-MANIFEST_SCHEMA=PUBLIC
+MANIFEST_DATABASE=RETAIL
+MANIFEST_SCHEMA=PLUGS_ELECTRONICS
 MANIFEST_TABLE_PREFIX=
 MANIFEST_TABLE_SUFFIX=
 API_URL=https://api.sigmacomputing.com/v2
@@ -31,7 +31,7 @@ SIGMA_DOMAIN=my-org.sigmacomputing.com
 API_CLIENT_ID=dummy-client-id
 API_SECRET=dummy-secret
 CONNECTION_ID=dummy-connection-id
-SIGMA_FOLDER_ID=dummy-folder-id
+SIGMA_FOLDER_ID=23xVmjTE4gZP7P6Wnpi4rA
 MODE=initial
 USER_FRIENDLY_COLUMN_NAMES=true
 TEST_FLAG=true
@@ -173,7 +173,6 @@ EOF
 chmod +x tools/patch_semantic_models.py
 
 # ---------- tools/build_sigma_explore_json.py ----------
-# This script directly converts LookML Explores into a unified Sigma Data Model JSON.
 cat > tools/build_sigma_explore_json.py << 'EOF'
 #!/usr/bin/env python3
 import sys
@@ -195,6 +194,10 @@ def main():
     lookml_dir = sys.argv[1] if len(sys.argv) > 1 else "lookml"
     output_dir = sys.argv[2] if len(sys.argv) > 2 else "sigma_model"
     
+    # Extract defaults from env
+    env_db = os.environ.get("MANIFEST_DATABASE", "RETAIL")
+    env_schema = os.environ.get("MANIFEST_SCHEMA", "PLUGS_ELECTRONICS")
+
     views = {}
     explores = {}
 
@@ -222,12 +225,24 @@ def main():
         def add_element(v_name):
             if v_name not in elements:
                 view_def = views.get(v_name, {})
+                
+                # Fully qualify the table path using .env defaults if necessary
                 table_name = view_def.get("sql_table_name", v_name).strip(";")
-                path = [p.replace('"', '').strip() for p in table_name.split(".")]
+                path_parts = [p.replace('"', '').replace('`', '').strip() for p in table_name.split(".")]
+                
+                if len(path_parts) == 1:
+                    path = [env_db, env_schema, path_parts[0]]
+                elif len(path_parts) == 2:
+                    path = [env_db, path_parts[0], path_parts[1]]
+                else:
+                    path = path_parts
                 
                 columns = []
-                for dim in view_def.get("dimensions", []):
+                # Grab both standard dimensions and dimension groups (like timeframes)
+                all_dims = view_def.get("dimensions", []) + view_def.get("dimension_groups", [])
+                for dim in all_dims:
                     columns.append({"id": dim["name"], "formula": dim.get("sql", f"[{dim['name']}]")})
+                
                 for meas in view_def.get("measures", []):
                     columns.append({"id": meas["name"], "formula": meas.get("sql", f"[{meas['name']}]")})
 
@@ -255,7 +270,6 @@ def main():
             if join_parts:
                 t1, f1, t2, f2 = join_parts
                 
-                # Ensure elements exist
                 add_element(t1)
                 add_element(t2)
                 
@@ -279,7 +293,7 @@ def main():
         out_path = os.path.join(output_dir, f"{explore_name}_unified_model.json")
         with open(out_path, "w") as f:
             json.dump(sigma_model, f, indent=2)
-        print(f"Generated unified Sigma Explore Model with relationships: {out_path}")
+        print(f"Generated strictly formatted JSON Sigma Data Model: {out_path}")
 
 if __name__ == "__main__":
     main()
@@ -297,7 +311,7 @@ EOF
 
 # ---------- .github/workflows/lookml_to_sigma.yml ----------
 cat > .github/workflows/lookml_to_sigma.yml << 'EOF'
-name: LookML → Sigma (Multi-Model TEST mode)
+name: LookML → Sigma (JSON Only Mode)
 
 on:
   push:
@@ -378,11 +392,12 @@ jobs:
             echo "3. Generating Semantic Manifest..."
             python tools/generate_semantic_manifest.py "$SEMANTIC_MODELS_DIR" "$SEMANTIC_MANIFEST_FILE"
             
-            echo "4. Translating via Node Converter..."
+            echo "4. Translating via Node Converter (Isolating output)..."
             (
               cd sigma_converter/sigma_converter
               export OUTPUT_DIR="./output_$model_name"
-              export SIGMA_MODEL_DIR="../../sigma_model/$model_name"
+              # We point the node converter's Sigma dump to a temp directory so it doesn't pollute your real folder with YAMLs
+              export SIGMA_MODEL_DIR="../../out/temp_yaml_dump/$model_name"
               export DAG_FILE="./output_$model_name/dag.json"
               export SOURCE_DIR="${{ github.workspace }}/$SEMANTIC_MODELS_DIR"
               export SEMANTIC_MANIFEST_FILE="${{ github.workspace }}/out/${model_name}_manifest.json"
@@ -391,15 +406,18 @@ jobs:
             )
 
             echo "5. Generating UNIFIED Sigma JSON with Explore Relationships..."
+            # This points exactly to sigma_model/ so it is the ONLY file generated here.
             python tools/build_sigma_explore_json.py "$CURRENT_LOOKML_DIR" "sigma_model/$model_name"
           done
 
-      - name: Commit and push generated Sigma models
+      - name: Commit and push strictly generated JSON
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add sigma_model/ out/
-          git commit -m "Auto-generated Unified Sigma Data Models with Explore relationships" || echo "No changes to commit"
+          
+          # Only add the sigma_model directory to ensure NO YAMLs are committed
+          git add sigma_model/
+          git commit -m "Auto-generated Unified JSON Sigma Data Models" || echo "No changes to commit"
           git push
 EOF
 
@@ -412,4 +430,4 @@ else
   exit 1
 fi
 
-echo "Setup complete! Once pushed, check GitHub Actions for your new, unified JSONs."
+echo "Setup complete! Once pushed, check GitHub Actions for your pristine JSONs."
