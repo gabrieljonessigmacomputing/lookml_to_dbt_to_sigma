@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 import os
+import sys
 import json
 import glob
 import yaml
 
 def main():
-    semantic_dir = os.environ.get("SEMANTIC_MODELS_DIR", "lookml/semantic_models")
-    manifest_path = os.environ.get("SEMANTIC_MANIFEST_FILE", "out/semantic_manifest.json")
+    semantic_dir = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("SEMANTIC_MODELS_DIR", "lookml/semantic_models")
+    manifest_path = sys.argv[2] if len(sys.argv) > 2 else os.environ.get("SEMANTIC_MANIFEST_FILE", "out/semantic_manifest.json")
 
     database = os.environ["MANIFEST_DATABASE"]
     schema = os.environ["MANIFEST_SCHEMA"]
@@ -15,8 +16,8 @@ def main():
 
     semantic_models = []
 
-    yaml_paths = glob.glob(os.path.join(semantic_dir, "*.yml")) + \
-                 glob.glob(os.path.join(semantic_dir, "*.yaml"))
+    yaml_paths = glob.glob(os.path.join(semantic_dir, "**/*.yml"), recursive=True) + \
+                 glob.glob(os.path.join(semantic_dir, "**/*.yaml"), recursive=True)
 
     for path in yaml_paths:
         with open(path, "r") as f:

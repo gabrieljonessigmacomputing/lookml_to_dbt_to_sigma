@@ -1,28 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-mkdir -p lookml tools .github/workflows out
+mkdir -p lookml tools .github/workflows out sigma_model
 
-# ---------- README.md ----------
-cat > README.md << 'EOF'
-# LookML → dbt Semantic Layer → Sigma (TEST mode)
+# ---------- Execute User's LookML Script ----------
+echo "Running create_lookml.sh..."
+if [ -f "./create_lookml.sh" ]; then
+  bash ./create_lookml.sh
+else
+  echo "WARNING: create_lookml.sh not found in the current directory. Skipping LookML generation."
+fi
 
-This repo is a starter project to translate LookML modeling into Sigma Data Models
-via the dbt Semantic Layer, using only:
-
-- LookML files in `lookml/`
-- A simple `.env` configuration
-- A GitHub Actions workflow
-
-No dbt profile or warehouse credentials are required. The pipeline runs in **TEST mode**,
-so it does **not** make real Sigma API calls by default.
-EOF
+# ---------- Execute User's README Script ----------
+echo "Running make_readme.sh..."
+if [ -f "./make_readme.sh" ]; then
+  bash ./make_readme.sh
+else
+  echo "WARNING: make_readme.sh not found in the current directory. Skipping README generation."
+fi
 
 # ---------- .env ----------
 cat > .env << 'EOF'
 LOOKML_DIR=lookml
-SEMANTIC_MODELS_DIR=lookml/semantic_models
-SEMANTIC_MANIFEST_FILE=out/semantic_manifest.json
 MANIFEST_DATABASE=MY_DB
 MANIFEST_SCHEMA=PUBLIC
 MANIFEST_TABLE_PREFIX=
@@ -43,13 +42,14 @@ EOF
 cat > tools/generate_semantic_manifest.py << 'EOF'
 #!/usr/bin/env python3
 import os
+import sys
 import json
 import glob
 import yaml
 
 def main():
-    semantic_dir = os.environ.get("SEMANTIC_MODELS_DIR", "lookml/semantic_models")
-    manifest_path = os.environ.get("SEMANTIC_MANIFEST_FILE", "out/semantic_manifest.json")
+    semantic_dir = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("SEMANTIC_MODELS_DIR", "lookml/semantic_models")
+    manifest_path = sys.argv[2] if len(sys.argv) > 2 else os.environ.get("SEMANTIC_MANIFEST_FILE", "out/semantic_manifest.json")
 
     database = os.environ["MANIFEST_DATABASE"]
     schema = os.environ["MANIFEST_SCHEMA"]
@@ -58,8 +58,8 @@ def main():
 
     semantic_models = []
 
-    yaml_paths = glob.glob(os.path.join(semantic_dir, "*.yml")) + \
-                 glob.glob(os.path.join(semantic_dir, "*.yaml"))
+    yaml_paths = glob.glob(os.path.join(semantic_dir, "**/*.yml"), recursive=True) + \
+                 glob.glob(os.path.join(semantic_dir, "**/*.yaml"), recursive=True)
 
     for path in yaml_paths:
         with open(path, "r") as f:
@@ -92,34 +92,116 @@ if __name__ == "__main__":
 EOF
 chmod +x tools/generate_semantic_manifest.py
 
-# ---------- tools/patch_semantic_models.py (THE NEW FIX) ----------
+# ---------- tools/patch_semantic_models.py ----------
 cat > tools/patch_semantic_models.py << 'EOF'
 #!/usr/bin/env python3
+import sys
 import glob
 import yaml
+import json
+import os
+import re
+import lkml
 
-for filepath in glob.glob("lookml/semantic_models/*.yml"):
-    with open(filepath, "r") as f:
-        data = yaml.safe_load(f) or {}
+def extract_simple_join(sql_on):
+    if not sql_on: return None
+    match = re.match(r'^\s*\$\{([^.]+)\.([^}]+)\}\s*=\s*\$\{([^.]+)\.([^}]+)\}\s*$', sql_on)
+    return match.groups() if match else None
 
-    modified = False
-    for sm in data.get("semantic_models", []):
-        entities = sm.setdefault("entities", [])
-        has_primary = any(e.get("type") == "primary" for e in entities)
+def main():
+    lookml_dir = sys.argv[1] if len(sys.argv) > 1 else "lookml"
+    semantic_dir = sys.argv[2] if len(sys.argv) > 2 else "lookml/semantic_models"
+    report_file = sys.argv[3] if len(sys.argv) > 3 else "out/migration_report.json"
 
-        if not has_primary:
-            # Add 'id' as a primary entity so Sigma can join tables
-            entities.append({"name": "id", "type": "primary"})
-            modified = True
+    report = {"models_patched": [], "joins_mapped": [], "warnings": []}
+    explores = {}
+    
+    for filepath in glob.glob(f"{lookml_dir}/**/*.lkml", recursive=True):
+        with open(filepath, 'r') as f:
+            try:
+                parsed = lkml.load(f)
+                for explore in parsed.get("explores", []):
+                    # APPLYING ChatGPT's SAFE EXPLORE PARSING
+                    explore_name = explore.get("name")
+                    if not explore_name:
+                        report["warnings"].append(f"Explore missing name in {filepath}")
+                        continue
+                    explores[explore_name] = explore
+            except Exception as e:
+                report["warnings"].append(f"Failed to parse {filepath}: {str(e)}")
 
-            # Remove 'id' from dimensions to avoid dbt duplicate name errors
-            dims = sm.get("dimensions", [])
-            sm["dimensions"] = [d for d in dims if d.get("name") != "id"]
+    relationships = {}
+    for explore_name, explore_def in explores.items():
+        base_view = explore_def.get("from", explore_name)
+        for join in explore_def.get("joins", []):
+            # APPLYING ChatGPT's SAFE JOIN PARSING
+            join_view = join.get("from") or join.get("name")
+            if not join_view:
+                report["warnings"].append(f"Join missing both 'from' and 'name' in explore '{explore_name}'")
+                continue
+                
+            sql_on = join.get("sql_on")
+            
+            rel_type = join.get("relationship", "many_to_one")
+            if rel_type not in ["one_to_one", "many_to_one"]:
+                report["warnings"].append(f"Fan-out risk in '{explore_name}': join '{join_view}' uses '{rel_type}'.")
 
-    if modified:
-        with open(filepath, "w") as f:
-            yaml.dump(data, f, sort_keys=False)
-        print(f"Patched {filepath}: Upgraded 'id' to primary entity.")
+            join_parts = extract_simple_join(sql_on)
+            if join_parts:
+                t1, f1, t2, f2 = join_parts
+                if t1 == base_view and t2 == join_view:
+                    base_fk, target_pk = f1, f2
+                elif t2 == base_view and t1 == join_view:
+                    base_fk, target_pk = f2, f1
+                else:
+                    continue
+
+                relationships.setdefault(base_view, {"foreign_keys": [], "primary_key": None})
+                relationships[base_view]["foreign_keys"].append({"field": base_fk, "to": join_view})
+                
+                relationships.setdefault(join_view, {"foreign_keys": [], "primary_key": None})
+                relationships[join_view]["primary_key"] = target_pk
+                
+                report["joins_mapped"].append(f"Mapped {base_view}.{base_fk} -> {join_view}.{target_pk}")
+            else:
+                report["warnings"].append(f"Could not map complex join in '{explore_name}' -> '{join_view}': {sql_on}")
+
+    yaml_files = glob.glob(f"{semantic_dir}/**/*.yml", recursive=True) + glob.glob(f"{semantic_dir}/**/*.yaml", recursive=True)
+    for filepath in yaml_files:
+        with open(filepath, "r") as f:
+            data = yaml.safe_load(f) or {}
+
+        modified = False
+        for sm in data.get("semantic_models", []):
+            model_name = sm.get("name")
+            entities = sm.setdefault("entities", [])
+            dimensions = sm.setdefault("dimensions", [])
+            model_rels = relationships.get(model_name, {})
+
+            pk_name = model_rels.get("primary_key") or "id"
+            if not any(e.get("type") == "primary" for e in entities):
+                entities.append({"name": pk_name, "type": "primary", "expr": pk_name})
+                sm["dimensions"] = [d for d in dimensions if d.get("name") != pk_name]
+                modified = True
+
+            for fk in model_rels.get("foreign_keys", []):
+                fk_field, target = fk["field"], fk["to"]
+                if not any(e.get("name") == target and e.get("type") == "foreign" for e in entities):
+                    entities.append({"name": target, "type": "foreign", "expr": fk_field})
+                    sm["dimensions"] = [d for d in sm["dimensions"] if d.get("name") != fk_field]
+                    modified = True
+
+            if modified: report["models_patched"].append(model_name)
+
+        if modified:
+            with open(filepath, "w") as f: yaml.dump(data, f, sort_keys=False)
+
+    os.makedirs(os.path.dirname(report_file), exist_ok=True)
+    with open(report_file, "w") as f: json.dump(report, f, indent=2)
+    print(f"Patching complete. See {report_file} for audit details.")
+
+if __name__ == "__main__":
+    main()
 EOF
 chmod +x tools/patch_semantic_models.py
 
@@ -128,12 +210,13 @@ cat > requirements.txt << 'EOF'
 numpy<2
 dbt-core==1.5.*
 pyyaml
+lkml
 git+https://github.com/dbt-labs/dbt-converter.git@master
 EOF
 
 # ---------- .github/workflows/lookml_to_sigma.yml ----------
 cat > .github/workflows/lookml_to_sigma.yml << 'EOF'
-name: LookML → Sigma (TEST mode, no DB, no Sigma API)
+name: LookML → Sigma (Multi-Model TEST mode)
 
 on:
   push:
@@ -144,7 +227,6 @@ jobs:
   lookml_to_sigma:
     runs-on: ubuntu-latest
 
-    # This line allows the GitHub Action bot to push code back to your repo
     permissions:
       contents: write
 
@@ -153,7 +235,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Ensure output directory exists
-        run: mkdir -p out
+        run: mkdir -p out sigma_model
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -163,28 +245,6 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
-
-      - name: Run LookML → dbt semantic conversion
-        run: |
-          set -a; source .env; set +a
-          cd "$LOOKML_DIR"
-          rm -rf semantic_models
-          dbtc convert-lookml
-          
-          # Rename .yaml to .yml
-          echo "Renaming .yaml to .yml..."
-          cd semantic_models
-          for f in *.yaml; do
-            [ -e "$f" ] && mv "$f" "${f%.yaml}.yml"
-          done
-          
-          cd ../..
-          python tools/patch_semantic_models.py
-
-      - name: Generate stub semantic_manifest.json
-        run: |
-          set -a; source .env; set +a
-          python tools/generate_semantic_manifest.py
 
       - name: Set up Node for Sigma converter
         uses: actions/setup-node@v4
@@ -198,128 +258,78 @@ jobs:
         working-directory: sigma_converter/sigma_converter
         run: npm install
 
-      - name: Run dbt_semantics_to_sigma in TEST mode
-        working-directory: sigma_converter/sigma_converter
+      - name: Process each LookML subdirectory
         run: |
-          set -a; source ../../.env; set +a
-          cp ../../.env .env
+          set -a; source .env; set +a
           
-          export OUTPUT_DIR="./output"
-          export SEMANTIC_MANIFEST_FILE="${{ github.workspace }}/out/semantic_manifest.json"
-          export SOURCE_DIR="${{ github.workspace }}/lookml/semantic_models"
-          export SIGMA_MODEL_DIR="./sigma_model"
-          export DAG_FILE="./output/dag.json"
-          export TEST_FLAG=true
-          export FROM_CI_CD=false
-          
-          node src/main.js
+          for dir in "$LOOKML_DIR"/*/; do
+            dir=${dir%/}
+            
+            if [ ! -d "$dir" ]; then continue; fi
+            
+            model_name=$(basename "$dir")
+            echo "=========================================="
+            echo "Processing Sigma Model: $model_name"
+            echo "=========================================="
+            
+            export CURRENT_LOOKML_DIR="$dir"
+            export SEMANTIC_MODELS_DIR="$dir/semantic_models"
+            export SEMANTIC_MANIFEST_FILE="out/${model_name}_manifest.json"
+            export REPORT_FILE="out/${model_name}_report.json"
+            
+            echo "1. Converting LookML -> dbt Semantic Layer"
+            (
+              cd "$dir"
+              rm -rf semantic_models
+              dbtc convert-lookml || true
+              
+              if [ -d "semantic_models" ]; then
+                cd semantic_models
+                find . -name "*.yaml" -exec bash -c 'mv "$1" "${1%.yaml}.yml"' _ {} \;
+              fi
+            )
+            
+            if [ ! -d "$SEMANTIC_MODELS_DIR" ]; then
+              echo "No semantic models generated for $model_name. Skipping."
+              continue
+            fi
+            
+            echo "2. Patching Relationships..."
+            python tools/patch_semantic_models.py "$CURRENT_LOOKML_DIR" "$SEMANTIC_MODELS_DIR" "$REPORT_FILE"
+            
+            echo "3. Generating Semantic Manifest..."
+            python tools/generate_semantic_manifest.py "$SEMANTIC_MODELS_DIR" "$SEMANTIC_MANIFEST_FILE"
+            
+            echo "4. Translating to Sigma JSON Data Model..."
+            (
+              cd sigma_converter/sigma_converter
+              export OUTPUT_DIR="./output_$model_name"
+              export SIGMA_MODEL_DIR="../../sigma_model/$model_name"
+              export DAG_FILE="./output_$model_name/dag.json"
+              export SOURCE_DIR="${{ github.workspace }}/$SEMANTIC_MODELS_DIR"
+              export SEMANTIC_MANIFEST_FILE="${{ github.workspace }}/out/${model_name}_manifest.json"
+              
+              node src/main.js
+            )
+          done
 
-      - name: List generated Sigma model specs
-        working-directory: sigma_converter/sigma_converter
-        run: ls -R sigma_model || echo "No sigma_model directory created."
-
-      # --- THE NEW FIX: PUSH FILES BACK TO REPO ---
       - name: Commit and push generated Sigma models
         run: |
-          # Pull the generated models out of the converter tool and into the main repo folder
-          cp -r sigma_converter/sigma_converter/sigma_model ./sigma_model
-          
-          # Configure Git as the GitHub Actions bot
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Add, commit, and push!
-          git add sigma_model/
-          git commit -m "Auto-generated Sigma models" || echo "No changes to commit"
+          git add sigma_model/ out/
+          git commit -m "Auto-generated Sigma models from multi-directory LookML" || echo "No changes to commit"
           git push
 EOF
 
-# ---------- lookml/ecommerce.model.lkml ----------
-cat > lookml/ecommerce.model.lkml << 'EOF'
-connection: "your_connection_name"
+# ---------- Execute Git Push Script ----------
+echo "Running push_to_git.sh..."
+if [ -f "./push_to_git.sh" ]; then
+  bash ./push_to_git.sh
+else
+  echo "ERROR: push_to_git.sh not found. Skipping repository push phase."
+  exit 1
+fi
 
-include: "*.view.lkml"
-
-explore: orders {
-  from: orders
-  label: "Orders"
-  description: "Orders explore generated from Sigma pipeline test"
-}
-
-explore: customers {
-  from: customers
-  label: "Customers"
-  description: "Customers explore generated from Sigma pipeline test"
-}
-EOF
-
-# ---------- lookml/orders.view.lkml ----------
-cat > lookml/orders.view.lkml << 'EOF'
-view: orders {
-  sql_table_name: my_db.public.orders ;;
-
-  dimension: id {
-    primary_key: yes
-    type: number
-    sql: ${TABLE}.id ;;
-  }
-
-  dimension: order_date {
-    type: date
-    sql: ${TABLE}.order_date ;;
-  }
-
-  dimension: customer_id {
-    type: number
-    sql: ${TABLE}.customer_id ;;
-  }
-
-  measure: total_revenue {
-    type: sum
-    sql: ${TABLE}.revenue ;;
-    value_format_name: usd
-  }
-}
-EOF
-
-# ---------- lookml/customers.view.lkml ----------
-cat > lookml/customers.view.lkml << 'EOF'
-view: customers {
-  sql_table_name: my_db.public.customers ;;
-
-  dimension: id {
-    primary_key: yes
-    type: number
-    sql: ${TABLE}.id ;;
-  }
-
-  dimension: name {
-    type: string
-    sql: ${TABLE}.name ;;
-  }
-
-  dimension: email {
-    type: string
-    sql: ${TABLE}.email ;;
-  }
-
-  measure: customer_count {
-    type: count
-  }
-}
-EOF
-
-# ---------- Git Initialization & Force Push ----------
-echo "Initializing Git repository and force-pushing to GitHub..."
-
-git init
-git add .
-git commit -m "Patch primary entities for Sigma converter" || true 
-git branch -M main
-
-git remote remove origin 2>/dev/null || true
-git remote add origin https://github.com/gabrieljonessigmacomputing/lookml_to_dbt_to_sigma.git
-
-git push -u origin main --force
-
-echo "Done! Code is live and the GitHub Action should trigger."
+echo "Setup complete! Once pushed, check GitHub Actions for the multi-model magic."
