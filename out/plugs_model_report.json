@@ -1,0 +1,16 @@
+{
+  "models_patched": [
+    "d_store",
+    "f_point_of_sale",
+    "d_customer",
+    "d_product",
+    "f_sales"
+  ],
+  "joins_mapped": [
+    "Mapped f_point_of_sale.order_number -> f_sales.order_number",
+    "Mapped f_point_of_sale.product_key -> d_product.product_key"
+  ],
+  "warnings": [
+    "Fan-out risk in 'f_point_of_sale': join 'f_sales' uses 'many_to_many'."
+  ]
+}

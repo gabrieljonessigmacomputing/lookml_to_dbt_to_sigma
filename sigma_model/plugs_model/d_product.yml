@@ -1,0 +1,60 @@
+dataModelId: 4ea54701-dbca-4d2f-a9be-5a56f1f445a5
+name: d_product
+pages:
+  - id: "1"
+    name: d_product
+    elements:
+      - id: d_product_table_guid
+        name: product_key
+        description: product_key
+        kind: table
+        source:
+          name: product_key
+          kind: warehouse-table
+          connectionId: dummy-connection-id
+          path:
+            - MY_DB
+            - PUBLIC
+            - D_PRODUCT
+        columns:
+          - id: product_name
+            name: product_name
+            formula: "[D_PRODUCT/Product Name]"
+          - id: product_type
+            name: product_type
+            formula: "[D_PRODUCT/Product Type]"
+          - id: product_family
+            name: product_family
+            formula: "[D_PRODUCT/Product Family]"
+          - id: product_line
+            name: product_line
+            formula: "[D_PRODUCT/Product Line]"
+          - id: product_group
+            name: product_group
+            formula: "[D_PRODUCT/Product Group]"
+          - id: product_description
+            name: product_description
+            formula: "[D_PRODUCT/Product Description]"
+          - id: sku_number
+            name: sku_number
+            formula: "[D_PRODUCT/Sku Number]"
+          - id: price
+            name: price
+            formula: "[D_PRODUCT/Price]"
+          - id: product_status
+            name: product_status
+            formula: "[D_PRODUCT/Product Status]"
+          - id: product_notes
+            name: product_notes
+            formula: "[D_PRODUCT/Product Notes]"
+          - id: proposed_price
+            name: proposed_price
+            formula: "[D_PRODUCT/Proposed Price]"
+          - id: d_product__product_key
+            name: d_product__product_key
+            formula: "[product_key]"
+        filters: []
+        folders: []
+        metrics: []
+        relationships: []
+        joins: []
