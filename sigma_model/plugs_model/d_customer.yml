@@ -1,0 +1,69 @@
+dataModelId: e2925e91-774d-4184-b382-5e4ce559b30b
+name: d_customer
+pages:
+  - id: "1"
+    name: d_customer
+    elements:
+      - id: d_customer_table_guid
+        name: id
+        description: id
+        kind: table
+        source:
+          name: id
+          kind: warehouse-table
+          connectionId: dummy-connection-id
+          path:
+            - MY_DB
+            - PUBLIC
+            - D_CUSTOMER
+        columns:
+          - id: cust_key
+            name: cust_key
+            formula: "[D_CUSTOMER/Cust Key]"
+          - id: cust_name
+            name: cust_name
+            formula: "[D_CUSTOMER/Cust Name]"
+          - id: cust_address
+            name: cust_address
+            formula: "[D_CUSTOMER/Cust Address]"
+          - id: cust_city
+            name: cust_city
+            formula: "[D_CUSTOMER/Cust City]"
+          - id: cust_state
+            name: cust_state
+            formula: "[D_CUSTOMER/Cust State]"
+          - id: cust_zip_code
+            name: cust_zip_code
+            formula: "[D_CUSTOMER/Cust Zip Code]"
+          - id: cust_county
+            name: cust_county
+            formula: "[D_CUSTOMER/Cust County]"
+          - id: cust_region
+            name: cust_region
+            formula: "[D_CUSTOMER/Cust Region]"
+          - id: cust_type
+            name: cust_type
+            formula: "[D_CUSTOMER/Cust Type]"
+          - id: cust_gender
+            name: cust_gender
+            formula: "[D_CUSTOMER/Cust Gender]"
+          - id: cust_age
+            name: cust_age
+            formula: "[D_CUSTOMER/Cust Age]"
+          - id: age_group
+            name: age_group
+            formula: "[D_CUSTOMER/Age Group]"
+          - id: civil_status
+            name: civil_status
+            formula: "[D_CUSTOMER/Civil Status]"
+          - id: loyalty_program
+            name: loyalty_program
+            formula: "[D_CUSTOMER/Loyalty Program]"
+          - id: d_customer__id
+            name: d_customer__id
+            formula: "[id]"
+        filters: []
+        folders: []
+        metrics: []
+        relationships: []
+        joins: []
