@@ -8,7 +8,6 @@ on:
 jobs:
   lookml_to_sigma:
     runs-on: ubuntu-latest
-
     permissions:
       contents: write
 
@@ -46,7 +45,6 @@ jobs:
           
           for dir in "$LOOKML_DIR"/*/; do
             dir=${dir%/}
-            
             if [ ! -d "$dir" ]; then continue; fi
             
             model_name=$(basename "$dir")
@@ -64,7 +62,6 @@ jobs:
               cd "$dir"
               rm -rf semantic_models
               dbtc convert-lookml || true
-              
               if [ -d "semantic_models" ]; then
                 cd semantic_models
                 find . -name "*.yaml" -exec bash -c 'mv "$1" "${1%.yaml}.yml"' _ {} \;
@@ -82,7 +79,7 @@ jobs:
             echo "3. Generating Semantic Manifest..."
             python tools/generate_semantic_manifest.py "$SEMANTIC_MODELS_DIR" "$SEMANTIC_MANIFEST_FILE"
             
-            echo "4. Translating to Sigma JSON Data Model..."
+            echo "4. Translating via Node Converter..."
             (
               cd sigma_converter/sigma_converter
               export OUTPUT_DIR="./output_$model_name"
@@ -90,18 +87,18 @@ jobs:
               export DAG_FILE="./output_$model_name/dag.json"
               export SOURCE_DIR="${{ github.workspace }}/$SEMANTIC_MODELS_DIR"
               export SEMANTIC_MANIFEST_FILE="${{ github.workspace }}/out/${model_name}_manifest.json"
-              
               mkdir -p "$OUTPUT_DIR" "$SIGMA_MODEL_DIR"
-              
               node src/main.js
             )
+
+            echo "5. Generating UNIFIED Sigma JSON with Explore Relationships..."
+            python tools/build_sigma_explore_json.py "$CURRENT_LOOKML_DIR" "sigma_model/$model_name"
           done
 
       - name: Commit and push generated Sigma models
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          
           git add sigma_model/ out/
-          git commit -m "Auto-generated Sigma models from multi-directory LookML" || echo "No changes to commit"
+          git commit -m "Auto-generated Unified Sigma Data Models with Explore relationships" || echo "No changes to commit"
           git push

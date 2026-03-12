@@ -25,11 +25,9 @@ def main():
 
         for sm in data.get("semantic_models", []):
             name = sm.get("name")
-            if not name:
-                continue
+            if not name: continue
 
             table = (prefix + name + suffix).upper()
-
             semantic_models.append({
                 "name": name,
                 "node_relation": {
@@ -42,8 +40,6 @@ def main():
     os.makedirs(os.path.dirname(manifest_path), exist_ok=True)
     with open(manifest_path, "w") as f:
         json.dump({"semantic_models": semantic_models}, f, indent=2)
-
-    print(f"Wrote semantic manifest with {len(semantic_models)} semantic model(s) to {manifest_path}")
 
 if __name__ == "__main__":
     main()

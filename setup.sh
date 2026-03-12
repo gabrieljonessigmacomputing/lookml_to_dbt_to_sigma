@@ -67,11 +67,9 @@ def main():
 
         for sm in data.get("semantic_models", []):
             name = sm.get("name")
-            if not name:
-                continue
+            if not name: continue
 
             table = (prefix + name + suffix).upper()
-
             semantic_models.append({
                 "name": name,
                 "node_relation": {
@@ -85,8 +83,6 @@ def main():
     with open(manifest_path, "w") as f:
         json.dump({"semantic_models": semantic_models}, f, indent=2)
 
-    print(f"Wrote semantic manifest with {len(semantic_models)} semantic model(s) to {manifest_path}")
-
 if __name__ == "__main__":
     main()
 EOF
@@ -95,13 +91,7 @@ chmod +x tools/generate_semantic_manifest.py
 # ---------- tools/patch_semantic_models.py ----------
 cat > tools/patch_semantic_models.py << 'EOF'
 #!/usr/bin/env python3
-import sys
-import glob
-import yaml
-import json
-import os
-import re
-import lkml
+import sys, glob, yaml, json, os, re, lkml
 
 def extract_simple_join(sql_on):
     if not sql_on: return None
@@ -117,115 +107,184 @@ def main():
     report = {"models_patched": [], "joins_mapped": [], "warnings": []}
     explores = {}
     
-    # 1. Parse LookML
     for filepath in glob.glob(f"{lookml_dir}/**/*.lkml", recursive=True):
         with open(filepath, 'r') as f:
             try:
                 parsed = lkml.load(f)
                 for explore in parsed.get("explores", []):
-                    explore_name = explore.get("name")
-                    if not explore_name:
-                        report["warnings"].append(f"Explore missing name in {filepath}")
-                        continue
-                    explores[explore_name] = explore
-            except Exception as e:
-                report["warnings"].append(f"Failed to parse {filepath}: {str(e)}")
+                    e_name = explore.get("name")
+                    if e_name: explores[e_name] = explore
+            except: pass
 
-    # 2. Extract Relationships
     relationships = {}
     for explore_name, explore_def in explores.items():
         base_view = explore_def.get("from", explore_name)
         for join in explore_def.get("joins", []):
             join_view = join.get("from") or join.get("name")
-            if not join_view:
-                report["warnings"].append(f"Join missing both 'from' and 'name' in explore '{explore_name}'")
-                continue
-                
-            sql_on = join.get("sql_on")
+            if not join_view: continue
             
-            rel_type = join.get("relationship", "many_to_one")
-            if rel_type not in ["one_to_one", "many_to_one"]:
-                report["warnings"].append(f"Fan-out risk in '{explore_name}': join '{join_view}' uses '{rel_type}'.")
-
-            join_parts = extract_simple_join(sql_on)
+            join_parts = extract_simple_join(join.get("sql_on"))
             if join_parts:
                 t1, f1, t2, f2 = join_parts
-                if t1 == base_view and t2 == join_view:
-                    base_fk, target_pk = f1, f2
-                elif t2 == base_view and t1 == join_view:
-                    base_fk, target_pk = f2, f1
-                else:
-                    continue
+                if t1 == base_view and t2 == join_view: base_fk, target_pk = f1, f2
+                elif t2 == base_view and t1 == join_view: base_fk, target_pk = f2, f1
+                else: continue
 
                 relationships.setdefault(base_view, {"foreign_keys": [], "primary_key": None})
                 relationships[base_view]["foreign_keys"].append({"field": base_fk, "to": join_view})
-                
                 relationships.setdefault(join_view, {"foreign_keys": [], "primary_key": None})
                 relationships[join_view]["primary_key"] = target_pk
-                
-                report["joins_mapped"].append(f"Mapped {base_view}.{base_fk} -> {join_view}.{target_pk}")
-            else:
-                report["warnings"].append(f"Could not map complex join in '{explore_name}' -> '{join_view}': {sql_on}")
 
-    # 3. Consolidate Yaml Files safely
-    yaml_files = glob.glob(f"{semantic_dir}/**/*.yml", recursive=True) + glob.glob(f"{semantic_dir}/**/*.yaml", recursive=True)
-    all_semantic_models = []
+    yaml_files = glob.glob(f"{semantic_dir}/**/*.yml", recursive=True)
+    all_sm = []
 
     for filepath in yaml_files:
-        # Prevent wiping the consolidated file if script runs twice
-        if os.path.basename(filepath) == f"{model_name_arg}.yml":
-            continue
-
+        if os.path.basename(filepath) == f"{model_name_arg}.yml": continue
         try:
-            with open(filepath, "r") as f:
-                data = yaml.safe_load(f) or {}
-
+            with open(filepath, "r") as f: data = yaml.safe_load(f) or {}
             for sm in data.get("semantic_models", []):
                 sm_name = sm.get("name")
                 if not sm_name: continue
+                
+                entities, dimensions = sm.get("entities") or [], sm.get("dimensions") or []
+                rels = relationships.get(sm_name, {})
 
-                # Defensive NoneType handling in case the yaml keys exist but are empty
-                entities = sm.get("entities") or []
-                dimensions = sm.get("dimensions") or []
-                model_rels = relationships.get(sm_name, {})
-
-                pk_name = model_rels.get("primary_key") or "id"
+                pk = rels.get("primary_key") or "id"
                 if not any(e.get("type") == "primary" for e in entities):
-                    entities.append({"name": pk_name, "type": "primary", "expr": pk_name})
-                    dimensions = [d for d in dimensions if d.get("name") != pk_name]
+                    entities.append({"name": pk, "type": "primary", "expr": pk})
+                    dimensions = [d for d in dimensions if d.get("name") != pk]
 
-                for fk in model_rels.get("foreign_keys", []):
-                    fk_field, target = fk["field"], fk["to"]
-                    if not any(e.get("name") == target and e.get("type") == "foreign" for e in entities):
-                        entities.append({"name": target, "type": "foreign", "expr": fk_field})
-                        dimensions = [d for d in dimensions if d.get("name") != fk_field]
+                for fk in rels.get("foreign_keys", []):
+                    if not any(e.get("name") == fk["to"] and e.get("type") == "foreign" for e in entities):
+                        entities.append({"name": fk["to"], "type": "foreign", "expr": fk["field"]})
+                        dimensions = [d for d in dimensions if d.get("name") != fk["field"]]
 
-                sm["entities"] = entities
-                sm["dimensions"] = dimensions
-                all_semantic_models.append(sm)
-                report["models_patched"].append(sm_name)
-
-            # File successfully parsed and mapped, safe to delete it
+                sm["entities"], sm["dimensions"] = entities, dimensions
+                all_sm.append(sm)
             os.remove(filepath)
-            print(f"Merged and removed: {filepath}")
+        except: pass
 
-        except Exception as e:
-            report["warnings"].append(f"Failed to process yaml {filepath}: {str(e)}")
+    if all_sm:
+        with open(os.path.join(semantic_dir, f"{model_name_arg}.yml"), "w") as f:
+            yaml.dump({"semantic_models": all_sm}, f, sort_keys=False)
 
-    # 4. Save consolidated Yaml
-    consolidated_path = os.path.join(semantic_dir, f"{model_name_arg}.yml")
-    if all_semantic_models:
-        with open(consolidated_path, "w") as f:
-            yaml.dump({"semantic_models": all_semantic_models}, f, sort_keys=False)
-        print(f"SUCCESS: Consolidated {len(all_semantic_models)} models into {consolidated_path}")
+if __name__ == "__main__": main()
+EOF
+chmod +x tools/patch_semantic_models.py
 
-    os.makedirs(os.path.dirname(report_file), exist_ok=True)
-    with open(report_file, "w") as f: json.dump(report, f, indent=2)
+# ---------- tools/build_sigma_explore_json.py ----------
+# This script directly converts LookML Explores into a unified Sigma Data Model JSON.
+cat > tools/build_sigma_explore_json.py << 'EOF'
+#!/usr/bin/env python3
+import sys
+import glob
+import json
+import os
+import re
+import lkml
+import uuid
+
+def make_id(): return str(uuid.uuid4())[:10]
+
+def extract_simple_join(sql_on):
+    if not sql_on: return None
+    match = re.match(r'^\s*\$\{([^.]+)\.([^}]+)\}\s*=\s*\$\{([^.]+)\.([^}]+)\}\s*$', sql_on)
+    return match.groups() if match else None
+
+def main():
+    lookml_dir = sys.argv[1] if len(sys.argv) > 1 else "lookml"
+    output_dir = sys.argv[2] if len(sys.argv) > 2 else "sigma_model"
+    
+    views = {}
+    explores = {}
+
+    # 1. Parse all LookML Views and Explores
+    for filepath in glob.glob(f"{lookml_dir}/**/*.lkml", recursive=True):
+        with open(filepath, 'r') as f:
+            try:
+                parsed = lkml.load(f)
+                for view in parsed.get("views", []):
+                    v_name = view.get("name")
+                    if v_name: views[v_name] = view
+                for explore in parsed.get("explores", []):
+                    e_name = explore.get("name")
+                    if e_name: explores[e_name] = explore
+            except Exception as e:
+                pass
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # 2. Build Sigma JSON for each Explore
+    for explore_name, explore_def in explores.items():
+        base_view = explore_def.get("from") or explore_name
+        elements = {}
+
+        def add_element(v_name):
+            if v_name not in elements:
+                view_def = views.get(v_name, {})
+                table_name = view_def.get("sql_table_name", v_name).strip(";")
+                path = [p.replace('"', '').strip() for p in table_name.split(".")]
+                
+                columns = []
+                for dim in view_def.get("dimensions", []):
+                    columns.append({"id": dim["name"], "formula": dim.get("sql", f"[{dim['name']}]")})
+                for meas in view_def.get("measures", []):
+                    columns.append({"id": meas["name"], "formula": meas.get("sql", f"[{meas['name']}]")})
+
+                elements[v_name] = {
+                    "id": v_name,
+                    "kind": "table",
+                    "source": {"kind": "warehouse-table", "path": path},
+                    "name": v_name,
+                    "columns": columns,
+                    "relationships": []
+                }
+
+        # Add base view
+        add_element(base_view)
+
+        # Add relationships based on LookML joins
+        for join in explore_def.get("joins", []):
+            join_view = join.get("from") or join.get("name")
+            if not join_view: continue
+            
+            add_element(join_view)
+
+            sql_on = join.get("sql_on", "")
+            join_parts = extract_simple_join(sql_on)
+            if join_parts:
+                t1, f1, t2, f2 = join_parts
+                
+                # Ensure elements exist
+                add_element(t1)
+                add_element(t2)
+                
+                elements[t1]["relationships"].append({
+                    "id": make_id(),
+                    "targetElementId": t2,
+                    "keys": [{"sourceColumnId": f1, "targetColumnId": f2}],
+                    "name": join.get("name", t2)
+                })
+
+        sigma_model = {
+            "name": explore_name,
+            "schemaVersion": 1,
+            "pages": [{
+                "id": make_id(),
+                "name": f"{explore_name} Explore Canvas",
+                "elements": list(elements.values())
+            }]
+        }
+
+        out_path = os.path.join(output_dir, f"{explore_name}_unified_model.json")
+        with open(out_path, "w") as f:
+            json.dump(sigma_model, f, indent=2)
+        print(f"Generated unified Sigma Explore Model with relationships: {out_path}")
 
 if __name__ == "__main__":
     main()
 EOF
-chmod +x tools/patch_semantic_models.py
+chmod +x tools/build_sigma_explore_json.py
 
 # ---------- requirements.txt ----------
 cat > requirements.txt << 'EOF'
@@ -248,7 +307,6 @@ on:
 jobs:
   lookml_to_sigma:
     runs-on: ubuntu-latest
-
     permissions:
       contents: write
 
@@ -286,7 +344,6 @@ jobs:
           
           for dir in "$LOOKML_DIR"/*/; do
             dir=${dir%/}
-            
             if [ ! -d "$dir" ]; then continue; fi
             
             model_name=$(basename "$dir")
@@ -304,7 +361,6 @@ jobs:
               cd "$dir"
               rm -rf semantic_models
               dbtc convert-lookml || true
-              
               if [ -d "semantic_models" ]; then
                 cd semantic_models
                 find . -name "*.yaml" -exec bash -c 'mv "$1" "${1%.yaml}.yml"' _ {} \;
@@ -322,7 +378,7 @@ jobs:
             echo "3. Generating Semantic Manifest..."
             python tools/generate_semantic_manifest.py "$SEMANTIC_MODELS_DIR" "$SEMANTIC_MANIFEST_FILE"
             
-            echo "4. Translating to Sigma JSON Data Model..."
+            echo "4. Translating via Node Converter..."
             (
               cd sigma_converter/sigma_converter
               export OUTPUT_DIR="./output_$model_name"
@@ -330,20 +386,20 @@ jobs:
               export DAG_FILE="./output_$model_name/dag.json"
               export SOURCE_DIR="${{ github.workspace }}/$SEMANTIC_MODELS_DIR"
               export SEMANTIC_MANIFEST_FILE="${{ github.workspace }}/out/${model_name}_manifest.json"
-              
               mkdir -p "$OUTPUT_DIR" "$SIGMA_MODEL_DIR"
-              
               node src/main.js
             )
+
+            echo "5. Generating UNIFIED Sigma JSON with Explore Relationships..."
+            python tools/build_sigma_explore_json.py "$CURRENT_LOOKML_DIR" "sigma_model/$model_name"
           done
 
       - name: Commit and push generated Sigma models
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          
           git add sigma_model/ out/
-          git commit -m "Auto-generated Sigma models from multi-directory LookML" || echo "No changes to commit"
+          git commit -m "Auto-generated Unified Sigma Data Models with Explore relationships" || echo "No changes to commit"
           git push
 EOF
 
@@ -356,4 +412,4 @@ else
   exit 1
 fi
 
-echo "Setup complete! Once pushed, check GitHub Actions for the consolidated multi-model magic."
+echo "Setup complete! Once pushed, check GitHub Actions for your new, unified JSONs."
