@@ -1,0 +1,39 @@
+dataModelId: c17c1f03-6777-4e37-b2d9-b679f17806e3
+name: f_sales
+pages:
+  - id: "1"
+    name: f_sales
+    elements:
+      - id: f_sales_table_guid
+        name: order_number
+        description: order_number
+        kind: table
+        source:
+          name: order_number
+          kind: warehouse-table
+          connectionId: dummy-connection-id
+          path:
+            - MY_DB
+            - PUBLIC
+            - F_SALES
+        columns:
+          - id: cust_key
+            name: cust_key
+            formula: "[F_SALES/Cust Key]"
+          - id: store_key
+            name: store_key
+            formula: "[F_SALES/Store Key]"
+          - id: transaction_type
+            name: transaction_type
+            formula: "[F_SALES/Transaction Type]"
+          - id: purchase_method
+            name: purchase_method
+            formula: "[F_SALES/Purchase Method]"
+          - id: f_sales__order_number
+            name: f_sales__order_number
+            formula: "[order_number]"
+        filters: []
+        folders: []
+        metrics: []
+        relationships: []
+        joins: []

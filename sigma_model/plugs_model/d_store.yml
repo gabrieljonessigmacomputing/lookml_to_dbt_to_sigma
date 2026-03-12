@@ -1,0 +1,66 @@
+dataModelId: 5725bf6e-b31e-4706-b128-e142f5603ae8
+name: d_store
+pages:
+  - id: "1"
+    name: d_store
+    elements:
+      - id: d_store_table_guid
+        name: id
+        description: id
+        kind: table
+        source:
+          name: id
+          kind: warehouse-table
+          connectionId: dummy-connection-id
+          path:
+            - MY_DB
+            - PUBLIC
+            - D_STORE
+        columns:
+          - id: store_key
+            name: store_key
+            formula: "[D_STORE/Store Key]"
+          - id: store_name
+            name: store_name
+            formula: "[D_STORE/Store Name]"
+          - id: store_address
+            name: store_address
+            formula: "[D_STORE/Store Address]"
+          - id: store_city
+            name: store_city
+            formula: "[D_STORE/Store City]"
+          - id: store_state
+            name: store_state
+            formula: "[D_STORE/Store State]"
+          - id: store_zip_code
+            name: store_zip_code
+            formula: "[D_STORE/Store Zip Code]"
+          - id: store_county
+            name: store_county
+            formula: "[D_STORE/Store County]"
+          - id: store_region
+            name: store_region
+            formula: "[D_STORE/Store Region]"
+          - id: store_size
+            name: store_size
+            formula: "[D_STORE/Store Size]"
+          - id: monthly_rent_cost
+            name: monthly_rent_cost
+            formula: "[D_STORE/Monthly Rent Cost]"
+          - id: number_of_employees
+            name: number_of_employees
+            formula: "[D_STORE/Number Of Employees]"
+          - id: online_ordering
+            name: online_ordering
+            formula: "[D_STORE/Online Ordering]"
+          - id: location
+            name: location
+            formula: "[D_STORE/Location]"
+          - id: d_store__id
+            name: d_store__id
+            formula: "[id]"
+        filters: []
+        folders: []
+        metrics: []
+        relationships: []
+        joins: []
