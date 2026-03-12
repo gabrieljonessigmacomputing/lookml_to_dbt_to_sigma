@@ -76,8 +76,9 @@ jobs:
               continue
             fi
             
-            echo "2. Patching Relationships..."
-            python tools/patch_semantic_models.py "$CURRENT_LOOKML_DIR" "$SEMANTIC_MODELS_DIR" "$REPORT_FILE"
+            echo "2. Patching and Consolidating Relationships..."
+            # Pass $model_name so the Python script names the consolidated yaml correctly
+            python tools/patch_semantic_models.py "$CURRENT_LOOKML_DIR" "$SEMANTIC_MODELS_DIR" "$REPORT_FILE" "$model_name"
             
             echo "3. Generating Semantic Manifest..."
             python tools/generate_semantic_manifest.py "$SEMANTIC_MODELS_DIR" "$SEMANTIC_MANIFEST_FILE"
@@ -91,7 +92,6 @@ jobs:
               export SOURCE_DIR="${{ github.workspace }}/$SEMANTIC_MODELS_DIR"
               export SEMANTIC_MANIFEST_FILE="${{ github.workspace }}/out/${model_name}_manifest.json"
               
-              # FIX: Create the output directories before the Node script tries to write to them
               mkdir -p "$OUTPUT_DIR" "$SIGMA_MODEL_DIR"
               
               node src/main.js

@@ -112,6 +112,7 @@ def main():
     lookml_dir = sys.argv[1] if len(sys.argv) > 1 else "lookml"
     semantic_dir = sys.argv[2] if len(sys.argv) > 2 else "lookml/semantic_models"
     report_file = sys.argv[3] if len(sys.argv) > 3 else "out/migration_report.json"
+    model_name_arg = sys.argv[4] if len(sys.argv) > 4 else "consolidated_model"
 
     report = {"models_patched": [], "joins_mapped": [], "warnings": []}
     explores = {}
@@ -165,38 +166,49 @@ def main():
                 report["warnings"].append(f"Could not map complex join in '{explore_name}' -> '{join_view}': {sql_on}")
 
     yaml_files = glob.glob(f"{semantic_dir}/**/*.yml", recursive=True) + glob.glob(f"{semantic_dir}/**/*.yaml", recursive=True)
+    
+    # NEW LOGIC: Consolidate all individual yaml files into one list
+    all_semantic_models = []
+
     for filepath in yaml_files:
         with open(filepath, "r") as f:
             data = yaml.safe_load(f) or {}
 
-        modified = False
         for sm in data.get("semantic_models", []):
-            model_name = sm.get("name")
+            sm_name = sm.get("name")
             entities = sm.setdefault("entities", [])
             dimensions = sm.setdefault("dimensions", [])
-            model_rels = relationships.get(model_name, {})
+            model_rels = relationships.get(sm_name, {})
 
             pk_name = model_rels.get("primary_key") or "id"
             if not any(e.get("type") == "primary" for e in entities):
                 entities.append({"name": pk_name, "type": "primary", "expr": pk_name})
                 sm["dimensions"] = [d for d in dimensions if d.get("name") != pk_name]
-                modified = True
 
             for fk in model_rels.get("foreign_keys", []):
                 fk_field, target = fk["field"], fk["to"]
                 if not any(e.get("name") == target and e.get("type") == "foreign" for e in entities):
                     entities.append({"name": target, "type": "foreign", "expr": fk_field})
                     sm["dimensions"] = [d for d in sm["dimensions"] if d.get("name") != fk_field]
-                    modified = True
 
-            if modified: report["models_patched"].append(model_name)
+            all_semantic_models.append(sm)
+            report["models_patched"].append(sm_name)
 
-        if modified:
-            with open(filepath, "w") as f: yaml.dump(data, f, sort_keys=False)
+        # Cleanup the individual files so we don't have duplicates
+        try:
+            os.remove(filepath)
+        except OSError:
+            pass
+
+    # Write the consolidated model out to a single file named after the LookML folder
+    consolidated_path = os.path.join(semantic_dir, f"{model_name_arg}.yml")
+    if all_semantic_models:
+        with open(consolidated_path, "w") as f:
+            yaml.dump({"semantic_models": all_semantic_models}, f, sort_keys=False)
 
     os.makedirs(os.path.dirname(report_file), exist_ok=True)
     with open(report_file, "w") as f: json.dump(report, f, indent=2)
-    print(f"Patching complete. See {report_file} for audit details.")
+    print(f"Patching complete. Consolidated into {consolidated_path}. See {report_file} for details.")
 
 if __name__ == "__main__":
     main()
@@ -292,8 +304,9 @@ jobs:
               continue
             fi
             
-            echo "2. Patching Relationships..."
-            python tools/patch_semantic_models.py "$CURRENT_LOOKML_DIR" "$SEMANTIC_MODELS_DIR" "$REPORT_FILE"
+            echo "2. Patching and Consolidating Relationships..."
+            # Pass $model_name so the Python script names the consolidated yaml correctly
+            python tools/patch_semantic_models.py "$CURRENT_LOOKML_DIR" "$SEMANTIC_MODELS_DIR" "$REPORT_FILE" "$model_name"
             
             echo "3. Generating Semantic Manifest..."
             python tools/generate_semantic_manifest.py "$SEMANTIC_MODELS_DIR" "$SEMANTIC_MANIFEST_FILE"
@@ -307,7 +320,6 @@ jobs:
               export SOURCE_DIR="${{ github.workspace }}/$SEMANTIC_MODELS_DIR"
               export SEMANTIC_MANIFEST_FILE="${{ github.workspace }}/out/${model_name}_manifest.json"
               
-              # FIX: Create the output directories before the Node script tries to write to them
               mkdir -p "$OUTPUT_DIR" "$SIGMA_MODEL_DIR"
               
               node src/main.js
@@ -333,4 +345,4 @@ else
   exit 1
 fi
 
-echo "Setup complete! Once pushed, check GitHub Actions for the multi-model magic."
+echo "Setup complete! Once pushed, check GitHub Actions for the consolidated multi-model magic."
