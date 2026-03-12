@@ -91,6 +91,9 @@ jobs:
               export SOURCE_DIR="${{ github.workspace }}/$SEMANTIC_MODELS_DIR"
               export SEMANTIC_MANIFEST_FILE="${{ github.workspace }}/out/${model_name}_manifest.json"
               
+              # FIX: Create the output directories before the Node script tries to write to them
+              mkdir -p "$OUTPUT_DIR" "$SIGMA_MODEL_DIR"
+              
               node src/main.js
             )
           done

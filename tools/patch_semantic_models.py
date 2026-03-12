@@ -25,7 +25,6 @@ def main():
             try:
                 parsed = lkml.load(f)
                 for explore in parsed.get("explores", []):
-                    # APPLYING ChatGPT's SAFE EXPLORE PARSING
                     explore_name = explore.get("name")
                     if not explore_name:
                         report["warnings"].append(f"Explore missing name in {filepath}")
@@ -38,7 +37,6 @@ def main():
     for explore_name, explore_def in explores.items():
         base_view = explore_def.get("from", explore_name)
         for join in explore_def.get("joins", []):
-            # APPLYING ChatGPT's SAFE JOIN PARSING
             join_view = join.get("from") or join.get("name")
             if not join_view:
                 report["warnings"].append(f"Join missing both 'from' and 'name' in explore '{explore_name}'")
