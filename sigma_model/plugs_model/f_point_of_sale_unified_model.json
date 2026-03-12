@@ -1,0 +1,420 @@
+{
+  "name": "f_point_of_sale",
+  "folderId": "23xVmjTE4gZP7P6Wnpi4rA",
+  "schemaVersion": 1,
+  "pages": [
+    {
+      "id": "14a88113-b",
+      "name": "f_point_of_sale Explore Canvas",
+      "elements": [
+        {
+          "id": "f_point_of_sale",
+          "kind": "table",
+          "source": {
+            "connectionId": "66YAkyjEZmOclq9LqxlKfm",
+            "kind": "warehouse-table",
+            "path": [
+              "RETAIL",
+              "PLUGS_ELECTRONICS",
+              "F_POINT_OF_SALE"
+            ]
+          },
+          "name": "f_point_of_sale",
+          "columns": [
+            {
+              "id": "order_number",
+              "name": "order_number",
+              "formula": "[F_POINT_OF_SALE/Order Number]"
+            },
+            {
+              "id": "product_key",
+              "name": "product_key",
+              "formula": "[F_POINT_OF_SALE/Product Key]"
+            },
+            {
+              "id": "sales_quantity",
+              "name": "sales_quantity",
+              "formula": "[F_POINT_OF_SALE/Sales Quantity]"
+            },
+            {
+              "id": "sales_amount",
+              "name": "sales_amount",
+              "formula": "[F_POINT_OF_SALE/Sales Amount]"
+            },
+            {
+              "id": "cost_amount",
+              "name": "cost_amount",
+              "formula": "[F_POINT_OF_SALE/Cost Amount]"
+            }
+          ],
+          "metrics": [
+            {
+              "id": "row_count",
+              "name": "row_count",
+              "formula": "Count()"
+            },
+            {
+              "id": "total_sales_amount",
+              "name": "total_sales_amount",
+              "formula": "[sales_amount] * [sales_quantity]"
+            },
+            {
+              "id": "total_cost_amount",
+              "name": "total_cost_amount",
+              "formula": "[cost_amount] * [sales_quantity]"
+            },
+            {
+              "id": "gross_profit_amount",
+              "name": "gross_profit_amount",
+              "formula": "[total_sales_amount] - [total_cost_amount]"
+            },
+            {
+              "id": "gross_profit_margin",
+              "name": "gross_profit_margin",
+              "formula": "1.0 * [gross_profit_amount] / NULLIF([total_sales_amount], 0)"
+            }
+          ],
+          "relationships": [
+            {
+              "id": "9307b7bd-d",
+              "targetElementId": "f_sales",
+              "keys": [
+                {
+                  "sourceColumnId": "order_number",
+                  "targetColumnId": "order_number"
+                }
+              ],
+              "name": "f_sales"
+            },
+            {
+              "id": "e9eccd20-7",
+              "targetElementId": "d_product",
+              "keys": [
+                {
+                  "sourceColumnId": "product_key",
+                  "targetColumnId": "product_key"
+                }
+              ],
+              "name": "d_product"
+            }
+          ]
+        },
+        {
+          "id": "f_sales",
+          "kind": "table",
+          "source": {
+            "connectionId": "66YAkyjEZmOclq9LqxlKfm",
+            "kind": "warehouse-table",
+            "path": [
+              "RETAIL",
+              "PLUGS_ELECTRONICS",
+              "F_SALES"
+            ]
+          },
+          "name": "f_sales",
+          "columns": [
+            {
+              "id": "order_number",
+              "name": "order_number",
+              "formula": "[F_SALES/Order Number]"
+            },
+            {
+              "id": "cust_key",
+              "name": "cust_key",
+              "formula": "[F_SALES/Cust Key]"
+            },
+            {
+              "id": "store_key",
+              "name": "store_key",
+              "formula": "[F_SALES/Store Key]"
+            },
+            {
+              "id": "transaction_type",
+              "name": "transaction_type",
+              "formula": "[F_SALES/Transaction Type]"
+            },
+            {
+              "id": "purchase_method",
+              "name": "purchase_method",
+              "formula": "[F_SALES/Purchase Method]"
+            },
+            {
+              "id": "transaction",
+              "name": "transaction",
+              "formula": "[F_SALES/Date]"
+            }
+          ],
+          "metrics": [],
+          "relationships": [
+            {
+              "id": "e80f1063-e",
+              "targetElementId": "d_store",
+              "keys": [
+                {
+                  "sourceColumnId": "store_key",
+                  "targetColumnId": "store_key"
+                }
+              ],
+              "name": "d_store"
+            },
+            {
+              "id": "fda264c8-a",
+              "targetElementId": "d_customer",
+              "keys": [
+                {
+                  "sourceColumnId": "cust_key",
+                  "targetColumnId": "cust_key"
+                }
+              ],
+              "name": "d_customer"
+            }
+          ]
+        },
+        {
+          "id": "d_product",
+          "kind": "table",
+          "source": {
+            "connectionId": "66YAkyjEZmOclq9LqxlKfm",
+            "kind": "warehouse-table",
+            "path": [
+              "RETAIL",
+              "PLUGS_ELECTRONICS",
+              "D_PRODUCT"
+            ]
+          },
+          "name": "d_product",
+          "columns": [
+            {
+              "id": "product_key",
+              "name": "product_key",
+              "formula": "[D_PRODUCT/Product Key]"
+            },
+            {
+              "id": "product_name",
+              "name": "product_name",
+              "formula": "[D_PRODUCT/Product Name]"
+            },
+            {
+              "id": "product_type",
+              "name": "product_type",
+              "formula": "[D_PRODUCT/Product Type]"
+            },
+            {
+              "id": "product_family",
+              "name": "product_family",
+              "formula": "[D_PRODUCT/Product Family]"
+            },
+            {
+              "id": "product_line",
+              "name": "product_line",
+              "formula": "[D_PRODUCT/Product Line]"
+            },
+            {
+              "id": "product_group",
+              "name": "product_group",
+              "formula": "[D_PRODUCT/Product Group]"
+            },
+            {
+              "id": "product_description",
+              "name": "product_description",
+              "formula": "[D_PRODUCT/Product Description]"
+            },
+            {
+              "id": "sku_number",
+              "name": "sku_number",
+              "formula": "[D_PRODUCT/Sku Number]"
+            },
+            {
+              "id": "price",
+              "name": "price",
+              "formula": "[D_PRODUCT/Price]"
+            },
+            {
+              "id": "product_status",
+              "name": "product_status",
+              "formula": "[D_PRODUCT/Product Status]"
+            },
+            {
+              "id": "product_notes",
+              "name": "product_notes",
+              "formula": "[D_PRODUCT/Product Notes]"
+            },
+            {
+              "id": "proposed_price",
+              "name": "proposed_price",
+              "formula": "[D_PRODUCT/Proposed Price]"
+            }
+          ],
+          "metrics": [],
+          "relationships": []
+        },
+        {
+          "id": "d_store",
+          "kind": "table",
+          "source": {
+            "connectionId": "66YAkyjEZmOclq9LqxlKfm",
+            "kind": "warehouse-table",
+            "path": [
+              "RETAIL",
+              "PLUGS_ELECTRONICS",
+              "D_STORE"
+            ]
+          },
+          "name": "d_store",
+          "columns": [
+            {
+              "id": "store_key",
+              "name": "store_key",
+              "formula": "[D_STORE/Store Key]"
+            },
+            {
+              "id": "store_name",
+              "name": "store_name",
+              "formula": "[D_STORE/Store Name]"
+            },
+            {
+              "id": "store_address",
+              "name": "store_address",
+              "formula": "[D_STORE/Store Address]"
+            },
+            {
+              "id": "store_city",
+              "name": "store_city",
+              "formula": "[D_STORE/Store City]"
+            },
+            {
+              "id": "store_state",
+              "name": "store_state",
+              "formula": "[D_STORE/Store State]"
+            },
+            {
+              "id": "store_zip_code",
+              "name": "store_zip_code",
+              "formula": "[D_STORE/Store Zip Code]"
+            },
+            {
+              "id": "store_county",
+              "name": "store_county",
+              "formula": "[D_STORE/Store County]"
+            },
+            {
+              "id": "store_region",
+              "name": "store_region",
+              "formula": "[D_STORE/Store Region]"
+            },
+            {
+              "id": "store_size",
+              "name": "store_size",
+              "formula": "[D_STORE/Store Size]"
+            },
+            {
+              "id": "monthly_rent_cost",
+              "name": "monthly_rent_cost",
+              "formula": "[D_STORE/Monthly Rent Cost]"
+            },
+            {
+              "id": "number_of_employees",
+              "name": "number_of_employees",
+              "formula": "[D_STORE/Number of Employees]"
+            },
+            {
+              "id": "online_ordering",
+              "name": "online_ordering",
+              "formula": "[D_STORE/Online Ordering]"
+            }
+          ],
+          "metrics": [],
+          "relationships": []
+        },
+        {
+          "id": "d_customer",
+          "kind": "table",
+          "source": {
+            "connectionId": "66YAkyjEZmOclq9LqxlKfm",
+            "kind": "warehouse-table",
+            "path": [
+              "RETAIL",
+              "PLUGS_ELECTRONICS",
+              "D_CUSTOMER"
+            ]
+          },
+          "name": "d_customer",
+          "columns": [
+            {
+              "id": "cust_key",
+              "name": "cust_key",
+              "formula": "[D_CUSTOMER/Cust Key]"
+            },
+            {
+              "id": "cust_name",
+              "name": "cust_name",
+              "formula": "[D_CUSTOMER/Cust Name]"
+            },
+            {
+              "id": "cust_address",
+              "name": "cust_address",
+              "formula": "[D_CUSTOMER/Cust Address]"
+            },
+            {
+              "id": "cust_city",
+              "name": "cust_city",
+              "formula": "[D_CUSTOMER/Cust City]"
+            },
+            {
+              "id": "cust_state",
+              "name": "cust_state",
+              "formula": "[D_CUSTOMER/Cust State]"
+            },
+            {
+              "id": "cust_zip_code",
+              "name": "cust_zip_code",
+              "formula": "[D_CUSTOMER/Cust Zip Code]"
+            },
+            {
+              "id": "cust_county",
+              "name": "cust_county",
+              "formula": "[D_CUSTOMER/Cust County]"
+            },
+            {
+              "id": "cust_region",
+              "name": "cust_region",
+              "formula": "[D_CUSTOMER/Cust Region]"
+            },
+            {
+              "id": "cust_type",
+              "name": "cust_type",
+              "formula": "[D_CUSTOMER/Cust Type]"
+            },
+            {
+              "id": "cust_gender",
+              "name": "cust_gender",
+              "formula": "[D_CUSTOMER/Cust Gender]"
+            },
+            {
+              "id": "cust_age",
+              "name": "cust_age",
+              "formula": "[D_CUSTOMER/Cust Age]"
+            },
+            {
+              "id": "age_group",
+              "name": "age_group",
+              "formula": "[D_CUSTOMER/Age Group]"
+            },
+            {
+              "id": "civil_status",
+              "name": "civil_status",
+              "formula": "[D_CUSTOMER/Civil Status]"
+            },
+            {
+              "id": "loyalty_program",
+              "name": "loyalty_program",
+              "formula": "[D_CUSTOMER/Loyalty Program]"
+            }
+          ],
+          "metrics": [],
+          "relationships": []
+        }
+      ]
+    }
+  ]
+}
