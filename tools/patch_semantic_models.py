@@ -21,6 +21,7 @@ def main():
     report = {"models_patched": [], "joins_mapped": [], "warnings": []}
     explores = {}
     
+    # 1. Parse LookML
     for filepath in glob.glob(f"{lookml_dir}/**/*.lkml", recursive=True):
         with open(filepath, 'r') as f:
             try:
@@ -34,6 +35,7 @@ def main():
             except Exception as e:
                 report["warnings"].append(f"Failed to parse {filepath}: {str(e)}")
 
+    # 2. Extract Relationships
     relationships = {}
     for explore_name, explore_def in explores.items():
         base_view = explore_def.get("from", explore_name)
@@ -69,50 +71,60 @@ def main():
             else:
                 report["warnings"].append(f"Could not map complex join in '{explore_name}' -> '{join_view}': {sql_on}")
 
+    # 3. Consolidate Yaml Files safely
     yaml_files = glob.glob(f"{semantic_dir}/**/*.yml", recursive=True) + glob.glob(f"{semantic_dir}/**/*.yaml", recursive=True)
-    
-    # NEW LOGIC: Consolidate all individual yaml files into one list
     all_semantic_models = []
 
     for filepath in yaml_files:
-        with open(filepath, "r") as f:
-            data = yaml.safe_load(f) or {}
+        # Prevent wiping the consolidated file if script runs twice
+        if os.path.basename(filepath) == f"{model_name_arg}.yml":
+            continue
 
-        for sm in data.get("semantic_models", []):
-            sm_name = sm.get("name")
-            entities = sm.setdefault("entities", [])
-            dimensions = sm.setdefault("dimensions", [])
-            model_rels = relationships.get(sm_name, {})
-
-            pk_name = model_rels.get("primary_key") or "id"
-            if not any(e.get("type") == "primary" for e in entities):
-                entities.append({"name": pk_name, "type": "primary", "expr": pk_name})
-                sm["dimensions"] = [d for d in dimensions if d.get("name") != pk_name]
-
-            for fk in model_rels.get("foreign_keys", []):
-                fk_field, target = fk["field"], fk["to"]
-                if not any(e.get("name") == target and e.get("type") == "foreign" for e in entities):
-                    entities.append({"name": target, "type": "foreign", "expr": fk_field})
-                    sm["dimensions"] = [d for d in sm["dimensions"] if d.get("name") != fk_field]
-
-            all_semantic_models.append(sm)
-            report["models_patched"].append(sm_name)
-
-        # Cleanup the individual files so we don't have duplicates
         try:
-            os.remove(filepath)
-        except OSError:
-            pass
+            with open(filepath, "r") as f:
+                data = yaml.safe_load(f) or {}
 
-    # Write the consolidated model out to a single file named after the LookML folder
+            for sm in data.get("semantic_models", []):
+                sm_name = sm.get("name")
+                if not sm_name: continue
+
+                # Defensive NoneType handling in case the yaml keys exist but are empty
+                entities = sm.get("entities") or []
+                dimensions = sm.get("dimensions") or []
+                model_rels = relationships.get(sm_name, {})
+
+                pk_name = model_rels.get("primary_key") or "id"
+                if not any(e.get("type") == "primary" for e in entities):
+                    entities.append({"name": pk_name, "type": "primary", "expr": pk_name})
+                    dimensions = [d for d in dimensions if d.get("name") != pk_name]
+
+                for fk in model_rels.get("foreign_keys", []):
+                    fk_field, target = fk["field"], fk["to"]
+                    if not any(e.get("name") == target and e.get("type") == "foreign" for e in entities):
+                        entities.append({"name": target, "type": "foreign", "expr": fk_field})
+                        dimensions = [d for d in dimensions if d.get("name") != fk_field]
+
+                sm["entities"] = entities
+                sm["dimensions"] = dimensions
+                all_semantic_models.append(sm)
+                report["models_patched"].append(sm_name)
+
+            # File successfully parsed and mapped, safe to delete it
+            os.remove(filepath)
+            print(f"Merged and removed: {filepath}")
+
+        except Exception as e:
+            report["warnings"].append(f"Failed to process yaml {filepath}: {str(e)}")
+
+    # 4. Save consolidated Yaml
     consolidated_path = os.path.join(semantic_dir, f"{model_name_arg}.yml")
     if all_semantic_models:
         with open(consolidated_path, "w") as f:
             yaml.dump({"semantic_models": all_semantic_models}, f, sort_keys=False)
+        print(f"SUCCESS: Consolidated {len(all_semantic_models)} models into {consolidated_path}")
 
     os.makedirs(os.path.dirname(report_file), exist_ok=True)
     with open(report_file, "w") as f: json.dump(report, f, indent=2)
-    print(f"Patching complete. Consolidated into {consolidated_path}. See {report_file} for details.")
 
 if __name__ == "__main__":
     main()
