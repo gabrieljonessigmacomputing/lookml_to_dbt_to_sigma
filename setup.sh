@@ -30,7 +30,7 @@ API_URL=https://api.sigmacomputing.com/v2
 SIGMA_DOMAIN=my-org.sigmacomputing.com
 API_CLIENT_ID=dummy-client-id
 API_SECRET=dummy-secret
-CONNECTION_ID=dummy-connection-id
+CONNECTION_ID=66YAkyjEZmOclq9LqxlKfm
 SIGMA_FOLDER_ID=23xVmjTE4gZP7P6Wnpi4rA
 MODE=initial
 USER_FRIENDLY_COLUMN_NAMES=true
@@ -190,6 +190,26 @@ def extract_simple_join(sql_on):
     match = re.match(r'^\s*\$\{([^.]+)\.([^}]+)\}\s*=\s*\$\{([^.]+)\.([^}]+)\}\s*$', sql_on)
     return match.groups() if match else None
 
+def convert_formula(lookml_sql, physical_table, field_name, field_type=None):
+    """Converts LookML syntax to Sigma Data Model bracket syntax."""
+    if not lookml_sql:
+        if field_type == 'count' or field_type == 'count_distinct':
+            return "Count()"
+        if field_type == 'location':
+            return "" # Location usually requires latitude/longitude pairs in Looker, omitting formula for safety
+        return f"[{physical_table}/{field_name}]"
+    
+    # 1. Replace ${TABLE}."Column Name" with [TABLE_NAME/Column Name]
+    s = re.sub(r'\$\{TABLE\}\."([^"]+)"', rf'[{physical_table}/\1]', lookml_sql)
+    
+    # 2. Replace ${TABLE}.column_name with [TABLE_NAME/column_name]
+    s = re.sub(r'\$\{TABLE\}\.([a-zA-Z0-9_]+)', rf'[{physical_table}/\1]', s)
+    
+    # 3. Replace generic ${field_name} with [field_name]
+    s = re.sub(r'\$\{([^}]+)\}', r'[\1]', s)
+    
+    return s
+
 def main():
     lookml_dir = sys.argv[1] if len(sys.argv) > 1 else "lookml"
     output_dir = sys.argv[2] if len(sys.argv) > 2 else "sigma_model"
@@ -197,6 +217,8 @@ def main():
     # Extract defaults from env
     env_db = os.environ.get("MANIFEST_DATABASE", "RETAIL")
     env_schema = os.environ.get("MANIFEST_SCHEMA", "PLUGS_ELECTRONICS")
+    env_conn = os.environ.get("CONNECTION_ID", "66YAkyjEZmOclq9LqxlKfm")
+    env_folder = os.environ.get("SIGMA_FOLDER_ID", "23xVmjTE4gZP7P6Wnpi4rA")
 
     views = {}
     explores = {}
@@ -226,9 +248,10 @@ def main():
             if v_name not in elements:
                 view_def = views.get(v_name, {})
                 
-                # Fully qualify the table path using .env defaults if necessary
+                # Extract the physical table name to use in Sigma formulas
                 table_name = view_def.get("sql_table_name", v_name).strip(";")
                 path_parts = [p.replace('"', '').replace('`', '').strip() for p in table_name.split(".")]
+                physical_table = path_parts[-1] # The actual table name
                 
                 if len(path_parts) == 1:
                     path = [env_db, env_schema, path_parts[0]]
@@ -238,20 +261,31 @@ def main():
                     path = path_parts
                 
                 columns = []
-                # Grab both standard dimensions and dimension groups (like timeframes)
+                metrics = []
+                
+                # Grab both standard dimensions and dimension groups
                 all_dims = view_def.get("dimensions", []) + view_def.get("dimension_groups", [])
                 for dim in all_dims:
-                    columns.append({"id": dim["name"], "formula": dim.get("sql", f"[{dim['name']}]")})
+                    f = convert_formula(dim.get("sql"), physical_table, dim["name"], dim.get("type"))
+                    if f: # Skip empty formulas like un-mapped locations
+                        columns.append({"id": dim["name"], "name": dim.get("label", dim["name"]), "formula": f})
                 
                 for meas in view_def.get("measures", []):
-                    columns.append({"id": meas["name"], "formula": meas.get("sql", f"[{meas['name']}]")})
+                    f = convert_formula(meas.get("sql"), physical_table, meas["name"], meas.get("type"))
+                    if f:
+                        metrics.append({"id": meas["name"], "name": meas.get("label", meas["name"]), "formula": f})
 
                 elements[v_name] = {
                     "id": v_name,
                     "kind": "table",
-                    "source": {"kind": "warehouse-table", "path": path},
+                    "source": {
+                        "connectionId": env_conn,
+                        "kind": "warehouse-table", 
+                        "path": path
+                    },
                     "name": v_name,
                     "columns": columns,
+                    "metrics": metrics,
                     "relationships": []
                 }
 
@@ -282,6 +316,7 @@ def main():
 
         sigma_model = {
             "name": explore_name,
+            "folderId": env_folder,
             "schemaVersion": 1,
             "pages": [{
                 "id": make_id(),
@@ -293,7 +328,7 @@ def main():
         out_path = os.path.join(output_dir, f"{explore_name}_unified_model.json")
         with open(out_path, "w") as f:
             json.dump(sigma_model, f, indent=2)
-        print(f"Generated strictly formatted JSON Sigma Data Model: {out_path}")
+        print(f"Generated compliant JSON Sigma Data Model: {out_path}")
 
 if __name__ == "__main__":
     main()
@@ -396,7 +431,6 @@ jobs:
             (
               cd sigma_converter/sigma_converter
               export OUTPUT_DIR="./output_$model_name"
-              # We point the node converter's Sigma dump to a temp directory so it doesn't pollute your real folder with YAMLs
               export SIGMA_MODEL_DIR="../../out/temp_yaml_dump/$model_name"
               export DAG_FILE="./output_$model_name/dag.json"
               export SOURCE_DIR="${{ github.workspace }}/$SEMANTIC_MODELS_DIR"
@@ -406,7 +440,6 @@ jobs:
             )
 
             echo "5. Generating UNIFIED Sigma JSON with Explore Relationships..."
-            # This points exactly to sigma_model/ so it is the ONLY file generated here.
             python tools/build_sigma_explore_json.py "$CURRENT_LOOKML_DIR" "sigma_model/$model_name"
           done
 
@@ -415,7 +448,6 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Only add the sigma_model directory to ensure NO YAMLs are committed
           git add sigma_model/
           git commit -m "Auto-generated Unified JSON Sigma Data Models" || echo "No changes to commit"
           git push
@@ -430,4 +462,4 @@ else
   exit 1
 fi
 
-echo "Setup complete! Once pushed, check GitHub Actions for your pristine JSONs."
+echo "Setup complete! Once pushed, check GitHub Actions for your pristine API-ready JSONs."

@@ -83,7 +83,6 @@ jobs:
             (
               cd sigma_converter/sigma_converter
               export OUTPUT_DIR="./output_$model_name"
-              # We point the node converter's Sigma dump to a temp directory so it doesn't pollute your real folder with YAMLs
               export SIGMA_MODEL_DIR="../../out/temp_yaml_dump/$model_name"
               export DAG_FILE="./output_$model_name/dag.json"
               export SOURCE_DIR="${{ github.workspace }}/$SEMANTIC_MODELS_DIR"
@@ -93,7 +92,6 @@ jobs:
             )
 
             echo "5. Generating UNIFIED Sigma JSON with Explore Relationships..."
-            # This points exactly to sigma_model/ so it is the ONLY file generated here.
             python tools/build_sigma_explore_json.py "$CURRENT_LOOKML_DIR" "sigma_model/$model_name"
           done
 
@@ -102,7 +100,6 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Only add the sigma_model directory to ensure NO YAMLs are committed
           git add sigma_model/
           git commit -m "Auto-generated Unified JSON Sigma Data Models" || echo "No changes to commit"
           git push

@@ -21,7 +21,7 @@ explore: f_point_of_sale {
   join: f_sales {
     type: left_outer
     sql_on: ${f_point_of_sale.order_number} = ${f_sales.order_number} ;;
-    relationship: many_to_many
+    relationship: many_to_one
   }
 
   join: d_product {
