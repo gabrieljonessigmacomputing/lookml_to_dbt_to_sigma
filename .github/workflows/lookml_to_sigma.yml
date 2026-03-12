@@ -1,0 +1,87 @@
+name: LookML → Sigma (JSON Only Mode)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  lookml_to_sigma:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Ensure output directory exists
+        run: mkdir -p out sigma_model
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Set up Node for Sigma converter
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Clone Sigma dbt_semantics_to_sigma
+        run: git clone --depth 1 https://github.com/sigmacomputing/dbt_semantics_to_sigma.git sigma_converter
+
+      - name: Install Sigma converter dependencies
+        working-directory: sigma_converter/sigma_converter
+        run: npm install
+
+      - name: Process each LookML subdirectory
+        run: |
+          set -a; source .env; set +a
+          
+          for dir in "$LOOKML_DIR"/*/; do
+            dir=${dir%/}
+            if [ ! -d "$dir" ]; then continue; fi
+            
+            model_name=$(basename "$dir")
+            echo "=========================================="
+            echo "Processing Sigma Model: $model_name"
+            echo "=========================================="
+            
+            export CURRENT_LOOKML_DIR="$dir"
+            export SEMANTIC_MODELS_DIR="$dir/semantic_models"
+            export SEMANTIC_MANIFEST_FILE="out/${model_name}_manifest.json"
+            export REPORT_FILE="out/${model_name}_report.json"
+            
+            if command -v dbtc &>/dev/null; then
+              echo "1. Converting LookML -> dbt Semantic Layer"
+              ( cd "$dir" && rm -rf semantic_models && dbtc convert-lookml || true )
+              if [ -d "$SEMANTIC_MODELS_DIR" ]; then
+                find "$SEMANTIC_MODELS_DIR" -name "*.yaml" -exec bash -c 'mv "$1" "${1%.yaml}.yml"' _ {} \;
+                echo "2. Patching and Consolidating Relationships..."
+                python tools/patch_semantic_models.py "$CURRENT_LOOKML_DIR" "$SEMANTIC_MODELS_DIR" "$REPORT_FILE" "$model_name"
+                echo "3. Generating Semantic Manifest..."
+                python tools/generate_semantic_manifest.py "$SEMANTIC_MODELS_DIR" "$SEMANTIC_MANIFEST_FILE"
+                echo "4. Translating via Node Converter..."
+                ( cd sigma_converter/sigma_converter && export OUTPUT_DIR="./output_$model_name" SIGMA_MODEL_DIR="../../out/temp_yaml_dump/$model_name" DAG_FILE="./output_$model_name/dag.json" SOURCE_DIR="${{ github.workspace }}/$SEMANTIC_MODELS_DIR" SEMANTIC_MANIFEST_FILE="${{ github.workspace }}/out/${model_name}_manifest.json" && mkdir -p "$OUTPUT_DIR" "$SIGMA_MODEL_DIR" && node src/main.js )
+              fi
+            else
+              echo "dbtc not installed; skipping dbt semantic layer and Node converter (Sigma JSON will still be generated from LookML)."
+            fi
+
+            echo "5. Generating Sigma JSON from LookML..."
+            python tools/build_sigma_explore_json.py "$CURRENT_LOOKML_DIR" "sigma_model/$model_name"
+          done
+
+      - name: Commit and push strictly generated JSON
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add sigma_model/
+          git commit -m "Auto-generated Unified JSON Sigma Data Models" || echo "No changes to commit"
+          git push
