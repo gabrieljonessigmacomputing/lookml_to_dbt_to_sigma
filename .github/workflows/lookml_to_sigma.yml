@@ -77,7 +77,6 @@ jobs:
             fi
             
             echo "2. Patching and Consolidating Relationships..."
-            # Pass $model_name so the Python script names the consolidated yaml correctly
             python tools/patch_semantic_models.py "$CURRENT_LOOKML_DIR" "$SEMANTIC_MODELS_DIR" "$REPORT_FILE" "$model_name"
             
             echo "3. Generating Semantic Manifest..."
