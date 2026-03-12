@@ -4,7 +4,7 @@
   "schemaVersion": 1,
   "pages": [
     {
-      "id": "14a88113-b",
+      "id": "eb577568-6",
       "name": "f_point_of_sale Explore Canvas",
       "elements": [
         {
@@ -76,7 +76,7 @@
           ],
           "relationships": [
             {
-              "id": "9307b7bd-d",
+              "id": "ffa01fab-8",
               "targetElementId": "f_sales",
               "keys": [
                 {
@@ -87,7 +87,7 @@
               "name": "f_sales"
             },
             {
-              "id": "e9eccd20-7",
+              "id": "af164771-7",
               "targetElementId": "d_product",
               "keys": [
                 {
@@ -147,7 +147,7 @@
           "metrics": [],
           "relationships": [
             {
-              "id": "e80f1063-e",
+              "id": "d4089c94-e",
               "targetElementId": "d_store",
               "keys": [
                 {
@@ -158,7 +158,7 @@
               "name": "d_store"
             },
             {
-              "id": "fda264c8-a",
+              "id": "0635801e-8",
               "targetElementId": "d_customer",
               "keys": [
                 {
