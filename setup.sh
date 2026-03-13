@@ -4,6 +4,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# Pre-flight: require python3 and pip so we get a clear message instead of a raw command error
+if ! command -v python3 &>/dev/null; then
+  echo "Error: Setup requires python3. Install it and re-run." >&2
+  exit 1
+fi
+if ! command -v pip &>/dev/null && ! python3 -m pip --version &>/dev/null 2>&1; then
+  echo "Error: Setup requires pip. Install it (e.g. python3 -m ensurepip) and re-run." >&2
+  exit 1
+fi
+
 # Directories: only create if missing (never remove or replace). Files: create or overwrite.
 mkdir -p lookml tools .github/workflows out sigma_model
 
@@ -38,6 +48,7 @@ FROM_CI_CD=false
 EOF
 
 # ---------- tools/generate_semantic_manifest.py ----------
+# Embedded script expects env: MANIFEST_DATABASE, MANIFEST_SCHEMA, MANIFEST_TABLE_PREFIX, MANIFEST_TABLE_SUFFIX, SEMANTIC_MODELS_DIR, SEMANTIC_MANIFEST_FILE.
 cat > tools/generate_semantic_manifest.py << 'EOF'
 #!/usr/bin/env python3
 import os
@@ -382,6 +393,10 @@ source .env
 set +a
 mkdir -p out sigma_model
 # Process looker_files/ only. Dirs: only create (mkdir -p); never remove or replace.
+if [ ! -d looker_files ] || [ -z "$(find looker_files -mindepth 1 -maxdepth 1 -type d 2>/dev/null)" ]; then
+  echo "WARNING: looker_files/ is missing or has no project directories. No Sigma JSON will be generated. Run create_lookml.sh or add LookML under looker_files/<project>/." >&2
+fi
+# Conversion uses CONNECTION_ID_<model_key> and CONNECTION_ID_DEFAULT from .env (model_key = folder name uppercase, hyphens→underscores).
 for dir in looker_files/*/; do
   [ ! -d "$dir" ] && continue
   dir="${dir%/}"

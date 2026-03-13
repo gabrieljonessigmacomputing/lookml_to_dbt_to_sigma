@@ -271,10 +271,10 @@ fi
 append_section "## Prerequisites"
 append_line "To run locally:"
 append_blank
-append_line "- Bash, Python 3, pip"
+append_line "- **Bash 4+**, **Python 3.9+**, **pip**"
 append_line "- Access to your Sigma environment (for \`create_model.py\`)"
 append_blank
-append_line "Dependencies are in \`requirements.txt\` (pyyaml, lkml, requests). No Node or dbt-converter required for the main LookML → Sigma JSON path."
+append_line "Dependencies are in \`requirements.txt\` (PyYAML, lkml, requests). Tested with Python 3.9+. No Node or dbt-converter required for the main LookML → Sigma JSON path."
 
 REQS="$(collect_requirements || true)"
 if [[ -n "$REQS" ]]; then
@@ -288,6 +288,8 @@ if [[ -n "$REQS" ]]; then
 fi
 
 append_section "## Setup"
+append_line "**Quick start:** 1. Run \`bash setup.sh\`. 2. Edit \`.env\` with your Sigma credentials and connection IDs. 3. Optionally run \`python create_model.py\` to push models to Sigma."
+append_blank
 append_line "Run locally:"
 append_blank
 append_line '```bash'
@@ -309,6 +311,16 @@ append_line '| `MANIFEST_SCHEMA` | Warehouse schema name for table paths. |'
 append_line '| `SIGMA_FOLDER_ID` | Sigma folder ID for created data models. |'
 append_line '| `API_URL` / `SIGMA_DOMAIN` | Sigma API and domain. |'
 append_line '| `API_CLIENT_ID` / `API_SECRET` | Sigma API credentials (for \`create_model.py\`; or use \`SIGMA_CLIENT_ID\` / \`SIGMA_CLIENT_SECRET\`). |'
+append_line '| `SIGMA_API_BASE_URL` | Base URL for Sigma API (default: production; used by \`create_model.py\`). |'
+append_line '| `CREATE_MODEL_VERBOSE` | When set, \`create_model.py\` prints full API response for each created model. |'
+append_blank
+append_line "Full list: see **CONNECTIONS.md** (Environment variables reference) and **\`.env.example\`**."
+
+append_section "## Troubleshooting"
+append_line "- **Missing SIGMA_CLIENT_ID or SIGMA_CLIENT_SECRET** — Set these in \`.env\`, or use \`API_CLIENT_ID\` and \`API_SECRET\` (create_model.py accepts both)."
+append_line "- **No JSON files found** — Run \`setup.sh\` or \`./regenerate_sigma_json.sh\` and ensure \`looker_files/<project>/\` exists with at least one \`.model.lkml\` file."
+append_line "- **Multiple \"plugs\" models** — Keep only one plugs project: \`looker_files/plugs/\`. Remove or rename old folders like \`plugs_model\` or \`plugs_hands_on_labs_data\`; see CONNECTIONS.md."
+append_line "- **Create model fails with table/path error** — \`create_model.py\` retries with custom SQL. Check that the connection ID in \`.env\` matches your Sigma connection and that the warehouse tables exist."
 
 append_section "## Adding your own LookML"
 append_line "- **Folder:** Add a directory \`looker_files/<project_name>/\` with your \`.lkml\` files (views and models). Re-run \`setup.sh\` or \`./regenerate_sigma_json.sh\` to generate Sigma JSON for it."
@@ -320,6 +332,7 @@ append_line "Sigma's APIs currently support **many_to_one** relationships only. 
 if [[ -n "$WORKFLOW_FILE" ]]; then
   append_section "## GitHub Actions (optional)"
   append_line "A workflow file is included. If you push to GitHub, it can run the conversion in CI. Push to GitHub is optional and is prompted at the end of \`setup.sh\`."
+  append_line "Note: CI may use a different conversion path (e.g. dbt + Node); results can differ from local Python-only conversion."
 fi
 
 append_section "## Generated artifacts"

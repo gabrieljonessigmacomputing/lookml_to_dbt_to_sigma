@@ -4,7 +4,7 @@
   "schemaVersion": 1,
   "pages": [
     {
-      "id": "b1a7f496-0",
+      "id": "47592ed9-6",
       "name": "plugs Canvas",
       "elements": [
         {
@@ -76,7 +76,7 @@
           ],
           "relationships": [
             {
-              "id": "8512608f-4",
+              "id": "a5276fb1-6",
               "targetElementId": "f_sales",
               "keys": [
                 {
@@ -87,7 +87,7 @@
               "name": "f_sales"
             },
             {
-              "id": "984c8691-a",
+              "id": "5bd444e1-4",
               "targetElementId": "d_product",
               "keys": [
                 {
@@ -154,7 +154,7 @@
           "metrics": [],
           "relationships": [
             {
-              "id": "53ed1c43-2",
+              "id": "684e8a42-3",
               "targetElementId": "d_store",
               "keys": [
                 {
@@ -165,7 +165,7 @@
               "name": "d_store"
             },
             {
-              "id": "8e8a50ea-1",
+              "id": "a712a8b7-4",
               "targetElementId": "d_customer",
               "keys": [
                 {

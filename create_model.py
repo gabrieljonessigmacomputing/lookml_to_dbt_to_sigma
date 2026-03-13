@@ -91,16 +91,18 @@ def _payload_warehouse_to_custom_sql(payload):
                 el["order"] = [c["id"] for c in el["columns"]]
     return out
 
-# 1. Load credentials from environment variables
-client_id = os.getenv("SIGMA_CLIENT_ID")
-client_secret = os.getenv("SIGMA_CLIENT_SECRET")
+# 1. Load credentials from environment variables (SIGMA_* preferred; fall back to API_* from .env)
+client_id = os.getenv("SIGMA_CLIENT_ID") or os.getenv("API_CLIENT_ID")
+client_secret = os.getenv("SIGMA_CLIENT_SECRET") or os.getenv("API_SECRET")
+# SIGMA_API_BASE_URL: base URL for Sigma API (default: production)
 api_base_url = os.getenv("SIGMA_API_BASE_URL", "https://api.sigmacomputing.com")
 
 if not client_id or not client_secret:
-    print("Error: Missing SIGMA_CLIENT_ID or SIGMA_CLIENT_SECRET environment variables.")
+    print("Error: Missing Sigma API credentials. Set SIGMA_CLIENT_ID and SIGMA_CLIENT_SECRET (or API_CLIENT_ID and API_SECRET in .env).")
     sys.exit(1)
 
-# 2. Authenticate once
+# 2. Authenticate once (with timeout and optional single retry on connection error)
+REQUEST_TIMEOUT = 60
 print("Authenticating with Sigma API...")
 auth_url = f"{api_base_url}/v2/auth/token"
 auth_payload = {
@@ -111,15 +113,24 @@ auth_payload = {
 auth_headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
 auth_response = None
-try:
-    auth_response = requests.post(auth_url, data=auth_payload, headers=auth_headers)
-    auth_response.raise_for_status()
-    access_token = auth_response.json().get("access_token")
-    print("Authentication successful!")
-except requests.exceptions.RequestException as e:
-    print(f"Authentication failed: {e}")
-    if auth_response is not None and getattr(auth_response, "text", None):
-        print(auth_response.text)
+access_token = None
+for attempt in (1, 2):
+    try:
+        auth_response = requests.post(auth_url, data=auth_payload, headers=auth_headers, timeout=REQUEST_TIMEOUT)
+        auth_response.raise_for_status()
+        access_token = auth_response.json().get("access_token")
+        print("Authentication successful!")
+        break
+    except requests.exceptions.RequestException as e:
+        if attempt == 1 and isinstance(e, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)):
+            print("Auth request failed (connection/timeout), retrying once...")
+            continue
+        print(f"Authentication failed: {e}")
+        if auth_response is not None and getattr(auth_response, "text", None):
+            print(auth_response.text)
+        sys.exit(1)
+if not access_token:
+    print("Error: No access token received.")
     sys.exit(1)
 
 # 3. Find all JSON files under sigma_model/ (any depth)
@@ -163,13 +174,14 @@ for path in sorted(json_files):
     name = payload.get("name", os.path.basename(path))
     response = None
     try:
-        response = requests.post(create_dm_url, headers=api_headers, json=payload)
+        response = requests.post(create_dm_url, headers=api_headers, json=payload, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         created += 1
         body = response.json()
         print(f"  Created data model: {name}")
         if body.get("id"):
             print(f"  Data model ID: {body.get('id')}")
+        # CREATE_MODEL_VERBOSE: when set, print full API response for each created model
         if os.environ.get("CREATE_MODEL_VERBOSE"):
             print(f"  Response: {json.dumps(body, indent=2)}")
     except requests.exceptions.RequestException as e:
@@ -177,7 +189,7 @@ for path in sorted(json_files):
         if response is not None and _should_retry_with_custom_sql(response):
             try:
                 payload_custom = _payload_warehouse_to_custom_sql(payload)
-                retry_resp = requests.post(create_dm_url, headers=api_headers, json=payload_custom)
+                retry_resp = requests.post(create_dm_url, headers=api_headers, json=payload_custom, timeout=REQUEST_TIMEOUT)
                 retry_resp.raise_for_status()
                 created += 1
                 body = retry_resp.json()
