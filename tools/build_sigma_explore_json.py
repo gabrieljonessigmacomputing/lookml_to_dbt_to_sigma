@@ -49,73 +49,80 @@ def convert_formula(lookml_sql, physical_table, field_name, field_type=None, kno
 def main():
     lookml_dir = sys.argv[1] if len(sys.argv) > 1 else "lookml"
     output_dir = sys.argv[2] if len(sys.argv) > 2 else "sigma_model"
-    
-    # Extract defaults from env
+    model_name = (sys.argv[3] if len(sys.argv) > 3 else "").strip() or os.environ.get("CURRENT_MODEL_NAME", "").strip()
+    model_key = (model_name or "").upper().replace("-", "_").replace(" ", "_")
+    default_conn = "bee6615c-7d11-435c-8819-e32207b27fe4"
+    env_conn = os.environ.get("CONNECTION_ID_" + model_key) or os.environ.get("CONNECTION_ID_DEFAULT", default_conn) if model_key else os.environ.get("CONNECTION_ID_DEFAULT", default_conn)
     env_db = os.environ.get("MANIFEST_DATABASE", "RETAIL")
     env_schema = os.environ.get("MANIFEST_SCHEMA", "PLUGS_ELECTRONICS")
-    env_conn = os.environ.get("CONNECTION_ID", "bee6615c-7d11-435c-8819-e32207b27fe4")
     env_folder = os.environ.get("SIGMA_FOLDER_ID", "23xVmjTE4gZP7P6Wnpi4rA")
 
     views = {}
-    explores = {}
     known_metrics = set()
+    model_explores = {}
 
-    # 1. Parse all LookML Views and Explores
-    for filepath in glob.glob(f"{lookml_dir}/**/*.lkml", recursive=True):
-        with open(filepath, 'r') as f:
+    # 1. Discover .lkml; collect views, group explores by source model file
+    seen_paths = set()
+    for pattern in (lookml_dir + "/views/*.lkml", lookml_dir + "/models/*.lkml", lookml_dir + "/**/*.lkml"):
+        for filepath in glob.glob(pattern, recursive=True):
+            if filepath in seen_paths: continue
+            seen_paths.add(filepath)
             try:
-                parsed = lkml.load(f)
+                with open(filepath, 'r') as f: parsed = lkml.load(f)
+                if not parsed: continue
                 for view in parsed.get("views", []):
-                    v_name = view.get("name")
-                    if v_name: 
+                    v_name = view.get("name") if view else None
+                    if v_name:
                         views[v_name] = view
-                        # Collect all measure names so we can correctly tag them as [Metrics/...] later
-                        for meas in view.get("measures", []):
-                            known_metrics.add(meas["name"])
-                            
-                for explore in parsed.get("explores", []):
-                    e_name = explore.get("name")
-                    if e_name: explores[e_name] = explore
-            except Exception as e:
-                pass
+                        for meas in (view.get("measures") or []):
+                            if meas and meas.get("name"): known_metrics.add(meas["name"])
+                explores_in_file = parsed.get("explores", [])
+                if explores_in_file:
+                    base = os.path.basename(filepath)
+                    model_name_from_file = base.replace(".model.lkml", "").replace(".lkml", "")
+                    if model_name_from_file not in model_explores: model_explores[model_name_from_file] = {}
+                    for explore in explores_in_file:
+                        e_name = explore.get("name") if explore else None
+                        if e_name: model_explores[model_name_from_file][e_name] = explore
+            except Exception: pass
 
     os.makedirs(output_dir, exist_ok=True)
 
-    # 2. Build Sigma JSON for each Explore
-    for explore_name, explore_def in explores.items():
-        base_view = explore_def.get("from") or explore_name
+    # 2. One Sigma JSON per LookML model file; remove stale JSONs from previous runs
+    written_basenames = set()
+    for model_name_from_file, explores in model_explores.items():
         elements = {}
 
         def add_element(v_name):
             if v_name not in elements:
                 view_def = views.get(v_name, {})
-                
-                # Extract the physical table name to use in Sigma formulas
-                table_name = view_def.get("sql_table_name", v_name).strip(";")
-                path_parts = [p.replace('"', '').replace('`', '').strip() for p in table_name.split(".")]
-                physical_table = path_parts[-1]
-                
-                if len(path_parts) == 1:
-                    path = [env_db, env_schema, path_parts[0]]
-                elif len(path_parts) == 2:
-                    path = [env_db, path_parts[0], path_parts[1]]
+                physical_table = v_name
+                derived = view_def.get("derived_table")
+                if isinstance(derived, dict) and derived.get("sql"):
+                    raw_sql = (derived.get("sql") or "").strip().rstrip(";")
+                    physical_table = "Custom SQL"
+                    source = {"connectionId": env_conn, "kind": "sql", "statement": raw_sql}
                 else:
-                    path = path_parts
-                
+                    table_name = view_def.get("sql_table_name", v_name).strip(";")
+                    path_parts = [p.replace('"', '').replace('`', '').strip() for p in table_name.split(".")]
+                    physical_table = path_parts[-1] if path_parts else v_name
+                    if len(path_parts) == 1:
+                        path = [env_db, env_schema, path_parts[0]]
+                    elif len(path_parts) == 2:
+                        path = [env_db, path_parts[0], path_parts[1]]
+                    else:
+                        path = path_parts
+                    source = {"connectionId": env_conn, "kind": "warehouse-table", "path": path}
                 columns = []
                 metrics = []
-                
                 all_dims = view_def.get("dimensions", []) + view_def.get("dimension_groups", [])
                 for dim in all_dims:
                     f = convert_formula(dim.get("sql"), physical_table, dim["name"], dim.get("type"), known_metrics)
-                    if f: 
+                    if f:
                         columns.append({"id": dim["name"], "name": dim.get("label", dim["name"]), "formula": f})
-                
                 for meas in view_def.get("measures", []):
                     m_type = meas.get("type", "number")
                     inner_f = convert_formula(meas.get("sql"), physical_table, meas["name"], m_type, known_metrics)
-                    
-                    # Apply proper Sigma Aggregation wrappers
                     if not inner_f and m_type == 'count':
                         f = "Count()"
                     elif inner_f:
@@ -125,64 +132,56 @@ def main():
                         elif m_type == 'count_distinct': f = f"CountDistinct({inner_f})"
                         elif m_type == 'min': f = f"Min({inner_f})"
                         elif m_type == 'max': f = f"Max({inner_f})"
-                        else: f = inner_f  # 'number' types (e.g. Margins) remain untouched
+                        else: f = inner_f
                     else:
                         f = ""
-
                     if f:
                         metrics.append({"id": meas["name"], "name": meas.get("label", meas["name"]), "formula": f})
+                order = [c["id"] for c in columns]
+                elements[v_name] = {"id": v_name, "kind": "table", "source": source, "name": v_name, "columns": columns, "metrics": metrics, "relationships": [], "order": order}
 
-                elements[v_name] = {
-                    "id": v_name,
-                    "kind": "table",
-                    "source": {
-                        "connectionId": env_conn,
-                        "kind": "warehouse-table", 
-                        "path": path
-                    },
-                    "name": v_name,
-                    "columns": columns,
-                    "metrics": metrics,
-                    "relationships": []
-                }
-
-        add_element(base_view)
-
-        for join in explore_def.get("joins", []):
-            join_view = join.get("from") or join.get("name")
-            if not join_view: continue
-            
-            add_element(join_view)
-
-            sql_on = join.get("sql_on", "")
-            join_parts = extract_simple_join(sql_on)
-            if join_parts:
-                t1, f1, t2, f2 = join_parts
-                add_element(t1)
-                add_element(t2)
-                
-                elements[t1]["relationships"].append({
-                    "id": make_id(),
-                    "targetElementId": t2,
-                    "keys": [{"sourceColumnId": f1, "targetColumnId": f2}],
-                    "name": join.get("name", t2)
-                })
+        for explore_name, explore_def in explores.items():
+            base_view = explore_def.get("from") or explore_name
+            add_element(base_view)
+            for join in explore_def.get("joins", []):
+                join_view = join.get("from") or join.get("name")
+                if not join_view: continue
+                add_element(join_view)
+                sql_on = join.get("sql_on", "")
+                join_parts = extract_simple_join(sql_on)
+                if join_parts:
+                    t1, f1, t2, f2 = join_parts
+                    add_element(t1)
+                    add_element(t2)
+                    rel_type = (join.get("relationship") or "many_to_one").strip().lower()
+                    if rel_type != "many_to_one":
+                        print("Warning: Sigma API supports only many_to_one. Skipping relationship '%s' (LookML: %s)." % (join.get("name", t2), rel_type), file=sys.stderr)
+                    else:
+                        elements[t1]["relationships"].append({
+                            "id": make_id(),
+                            "targetElementId": t2,
+                            "keys": [{"sourceColumnId": f1, "targetColumnId": f2}],
+                            "name": join.get("name", t2)
+                        })
 
         sigma_model = {
-            "name": explore_name,
+            "name": model_name_from_file,
             "folderId": env_folder,
             "schemaVersion": 1,
-            "pages": [{
-                "id": make_id(),
-                "name": f"{explore_name} Explore Canvas",
-                "elements": list(elements.values())
-            }]
+            "pages": [{"id": make_id(), "name": f"{model_name_from_file} Canvas", "elements": list(elements.values())}]
         }
-
-        out_path = os.path.join(output_dir, f"{explore_name}_unified_model.json")
+        out_path = os.path.join(output_dir, f"{model_name_from_file}_unified_model.json")
         with open(out_path, "w") as f:
             json.dump(sigma_model, f, indent=2)
+        written_basenames.add(os.path.basename(out_path))
         print(f"Generated compliant JSON Sigma Data Model: {out_path}")
+
+    for f in os.listdir(output_dir):
+        if f.endswith("_unified_model.json") and f not in written_basenames:
+            try:
+                os.remove(os.path.join(output_dir, f))
+                print(f"Removed stale: {os.path.join(output_dir, f)}", file=sys.stderr)
+            except OSError: pass
 
 if __name__ == "__main__":
     main()

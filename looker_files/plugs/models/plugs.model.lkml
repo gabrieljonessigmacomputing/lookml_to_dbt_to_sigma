@@ -1,6 +1,6 @@
 connection: "snowflake_se_demo"
 
-include: "*.view.lkml"
+include: "../views/*.view.lkml"
 
 explore: f_point_of_sale {
   label: "Plugs Electronics"

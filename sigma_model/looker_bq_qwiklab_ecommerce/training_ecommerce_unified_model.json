@@ -1,0 +1,820 @@
+{
+  "name": "training_ecommerce",
+  "folderId": "23xVmjTE4gZP7P6Wnpi4rA",
+  "schemaVersion": 1,
+  "pages": [
+    {
+      "id": "da7ed5c4-3",
+      "name": "training_ecommerce Canvas",
+      "elements": [
+        {
+          "id": "order_items",
+          "kind": "table",
+          "source": {
+            "connectionId": "b4a339ca-32ef-4ea9-a8b8-1525a27322cb",
+            "kind": "warehouse-table",
+            "path": [
+              "cloud-training-demos",
+              "looker_ecomm",
+              "order_items"
+            ]
+          },
+          "name": "order_items",
+          "columns": [
+            {
+              "id": "order_item_id",
+              "name": "order_item_id",
+              "formula": "[order_items/id]"
+            },
+            {
+              "id": "inventory_item_id",
+              "name": "inventory_item_id",
+              "formula": "[order_items/inventory_item_id]"
+            },
+            {
+              "id": "order_id",
+              "name": "order_id",
+              "formula": "[order_items/order_id]"
+            },
+            {
+              "id": "sale_price",
+              "name": "sale_price",
+              "formula": "[order_items/sale_price]"
+            },
+            {
+              "id": "status",
+              "name": "status",
+              "formula": "[order_items/status]"
+            },
+            {
+              "id": "user_id",
+              "name": "user_id",
+              "formula": "[order_items/user_id]"
+            },
+            {
+              "id": "created",
+              "name": "created",
+              "formula": "[order_items/created_at]"
+            },
+            {
+              "id": "delivered",
+              "name": "delivered",
+              "formula": "[order_items/delivered_at]"
+            },
+            {
+              "id": "returned",
+              "name": "returned",
+              "formula": "[order_items/returned_at]"
+            },
+            {
+              "id": "shipped",
+              "name": "shipped",
+              "formula": "[order_items/shipped_at]"
+            }
+          ],
+          "metrics": [
+            {
+              "id": "average_sale_price",
+              "name": "average_sale_price",
+              "formula": "Avg([sale_price])"
+            },
+            {
+              "id": "order_item_count",
+              "name": "order_item_count",
+              "formula": "Count()"
+            },
+            {
+              "id": "order_count",
+              "name": "order_count",
+              "formula": "CountDistinct([order_id])"
+            },
+            {
+              "id": "total_revenue",
+              "name": "total_revenue",
+              "formula": "Sum([sale_price])"
+            },
+            {
+              "id": "total_revenue_from_completed_orders",
+              "name": "total_revenue_from_completed_orders",
+              "formula": "Sum([sale_price])"
+            }
+          ],
+          "relationships": [
+            {
+              "id": "f5d0244d-4",
+              "targetElementId": "users",
+              "keys": [
+                {
+                  "sourceColumnId": "user_id",
+                  "targetColumnId": "id"
+                }
+              ],
+              "name": "users"
+            },
+            {
+              "id": "9214d870-d",
+              "targetElementId": "inventory_items",
+              "keys": [
+                {
+                  "sourceColumnId": "inventory_item_id",
+                  "targetColumnId": "id"
+                }
+              ],
+              "name": "inventory_items"
+            }
+          ],
+          "order": [
+            "order_item_id",
+            "inventory_item_id",
+            "order_id",
+            "sale_price",
+            "status",
+            "user_id",
+            "created",
+            "delivered",
+            "returned",
+            "shipped"
+          ]
+        },
+        {
+          "id": "users",
+          "kind": "table",
+          "source": {
+            "connectionId": "b4a339ca-32ef-4ea9-a8b8-1525a27322cb",
+            "kind": "warehouse-table",
+            "path": [
+              "cloud-training-demos",
+              "looker_ecomm",
+              "users"
+            ]
+          },
+          "name": "users",
+          "columns": [
+            {
+              "id": "id",
+              "name": "id",
+              "formula": "[users/id]"
+            },
+            {
+              "id": "age",
+              "name": "age",
+              "formula": "[users/age]"
+            },
+            {
+              "id": "city",
+              "name": "city",
+              "formula": "[users/city]"
+            },
+            {
+              "id": "country",
+              "name": "country",
+              "formula": "[users/country]"
+            },
+            {
+              "id": "email",
+              "name": "email",
+              "formula": "[users/email]"
+            },
+            {
+              "id": "first_name",
+              "name": "first_name",
+              "formula": "[users/first_name]"
+            },
+            {
+              "id": "gender",
+              "name": "gender",
+              "formula": "[users/gender]"
+            },
+            {
+              "id": "last_name",
+              "name": "last_name",
+              "formula": "[users/last_name]"
+            },
+            {
+              "id": "latitude",
+              "name": "latitude",
+              "formula": "[users/latitude]"
+            },
+            {
+              "id": "longitude",
+              "name": "longitude",
+              "formula": "[users/longitude]"
+            },
+            {
+              "id": "state",
+              "name": "state",
+              "formula": "[users/state]"
+            },
+            {
+              "id": "traffic_source",
+              "name": "traffic_source",
+              "formula": "[users/traffic_source]"
+            },
+            {
+              "id": "zip",
+              "name": "zip",
+              "formula": "[users/zip]"
+            },
+            {
+              "id": "created",
+              "name": "created",
+              "formula": "[users/created_at]"
+            }
+          ],
+          "metrics": [
+            {
+              "id": "count",
+              "name": "count",
+              "formula": "Count()"
+            }
+          ],
+          "relationships": [],
+          "order": [
+            "id",
+            "age",
+            "city",
+            "country",
+            "email",
+            "first_name",
+            "gender",
+            "last_name",
+            "latitude",
+            "longitude",
+            "state",
+            "traffic_source",
+            "zip",
+            "created"
+          ]
+        },
+        {
+          "id": "inventory_items",
+          "kind": "table",
+          "source": {
+            "connectionId": "b4a339ca-32ef-4ea9-a8b8-1525a27322cb",
+            "kind": "warehouse-table",
+            "path": [
+              "cloud-training-demos",
+              "looker_ecomm",
+              "inventory_items"
+            ]
+          },
+          "name": "inventory_items",
+          "columns": [
+            {
+              "id": "id",
+              "name": "id",
+              "formula": "[inventory_items/id]"
+            },
+            {
+              "id": "cost",
+              "name": "cost",
+              "formula": "[inventory_items/cost]"
+            },
+            {
+              "id": "product_brand",
+              "name": "product_brand",
+              "formula": "[inventory_items/product_brand]"
+            },
+            {
+              "id": "product_category",
+              "name": "product_category",
+              "formula": "[inventory_items/product_category]"
+            },
+            {
+              "id": "product_department",
+              "name": "product_department",
+              "formula": "[inventory_items/product_department]"
+            },
+            {
+              "id": "product_distribution_center_id",
+              "name": "product_distribution_center_id",
+              "formula": "[inventory_items/product_distribution_center_id]"
+            },
+            {
+              "id": "product_id",
+              "name": "product_id",
+              "formula": "[inventory_items/product_id]"
+            },
+            {
+              "id": "product_name",
+              "name": "product_name",
+              "formula": "[inventory_items/product_name]"
+            },
+            {
+              "id": "product_retail_price",
+              "name": "product_retail_price",
+              "formula": "[inventory_items/product_retail_price]"
+            },
+            {
+              "id": "product_sku",
+              "name": "product_sku",
+              "formula": "[inventory_items/product_sku]"
+            },
+            {
+              "id": "created",
+              "name": "created",
+              "formula": "[inventory_items/created_at]"
+            },
+            {
+              "id": "sold",
+              "name": "sold",
+              "formula": "[inventory_items/sold_at]"
+            }
+          ],
+          "metrics": [
+            {
+              "id": "count",
+              "name": "count",
+              "formula": "Count()"
+            }
+          ],
+          "relationships": [
+            {
+              "id": "456f6446-8",
+              "targetElementId": "products",
+              "keys": [
+                {
+                  "sourceColumnId": "product_id",
+                  "targetColumnId": "id"
+                }
+              ],
+              "name": "products"
+            }
+          ],
+          "order": [
+            "id",
+            "cost",
+            "product_brand",
+            "product_category",
+            "product_department",
+            "product_distribution_center_id",
+            "product_id",
+            "product_name",
+            "product_retail_price",
+            "product_sku",
+            "created",
+            "sold"
+          ]
+        },
+        {
+          "id": "products",
+          "kind": "table",
+          "source": {
+            "connectionId": "b4a339ca-32ef-4ea9-a8b8-1525a27322cb",
+            "kind": "warehouse-table",
+            "path": [
+              "cloud-training-demos",
+              "looker_ecomm",
+              "products"
+            ]
+          },
+          "name": "products",
+          "columns": [
+            {
+              "id": "id",
+              "name": "id",
+              "formula": "[products/id]"
+            },
+            {
+              "id": "brand",
+              "name": "brand",
+              "formula": "[products/brand]"
+            },
+            {
+              "id": "category",
+              "name": "category",
+              "formula": "[products/category]"
+            },
+            {
+              "id": "cost",
+              "name": "cost",
+              "formula": "[products/cost]"
+            },
+            {
+              "id": "department",
+              "name": "department",
+              "formula": "[products/department]"
+            },
+            {
+              "id": "distribution_center_id",
+              "name": "distribution_center_id",
+              "formula": "[products/distribution_center_id]"
+            },
+            {
+              "id": "name",
+              "name": "name",
+              "formula": "[products/name]"
+            },
+            {
+              "id": "retail_price",
+              "name": "retail_price",
+              "formula": "[products/retail_price]"
+            },
+            {
+              "id": "sku",
+              "name": "sku",
+              "formula": "[products/sku]"
+            }
+          ],
+          "metrics": [
+            {
+              "id": "count",
+              "name": "count",
+              "formula": "Count()"
+            }
+          ],
+          "relationships": [
+            {
+              "id": "fa4ef1ff-b",
+              "targetElementId": "distribution_centers",
+              "keys": [
+                {
+                  "sourceColumnId": "distribution_center_id",
+                  "targetColumnId": "id"
+                }
+              ],
+              "name": "distribution_centers"
+            }
+          ],
+          "order": [
+            "id",
+            "brand",
+            "category",
+            "cost",
+            "department",
+            "distribution_center_id",
+            "name",
+            "retail_price",
+            "sku"
+          ]
+        },
+        {
+          "id": "distribution_centers",
+          "kind": "table",
+          "source": {
+            "connectionId": "b4a339ca-32ef-4ea9-a8b8-1525a27322cb",
+            "kind": "warehouse-table",
+            "path": [
+              "cloud-training-demos",
+              "looker_ecomm",
+              "distribution_centers"
+            ]
+          },
+          "name": "distribution_centers",
+          "columns": [
+            {
+              "id": "id",
+              "name": "id",
+              "formula": "[distribution_centers/id]"
+            },
+            {
+              "id": "latitude",
+              "name": "latitude",
+              "formula": "[distribution_centers/latitude]"
+            },
+            {
+              "id": "longitude",
+              "name": "longitude",
+              "formula": "[distribution_centers/longitude]"
+            },
+            {
+              "id": "name",
+              "name": "name",
+              "formula": "[distribution_centers/name]"
+            }
+          ],
+          "metrics": [
+            {
+              "id": "count",
+              "name": "count",
+              "formula": "Count()"
+            }
+          ],
+          "relationships": [],
+          "order": [
+            "id",
+            "latitude",
+            "longitude",
+            "name"
+          ]
+        },
+        {
+          "id": "events",
+          "kind": "table",
+          "source": {
+            "connectionId": "b4a339ca-32ef-4ea9-a8b8-1525a27322cb",
+            "kind": "warehouse-table",
+            "path": [
+              "cloud-training-demos",
+              "looker_ecomm",
+              "events"
+            ]
+          },
+          "name": "events",
+          "columns": [
+            {
+              "id": "id",
+              "name": "id",
+              "formula": "[events/id]"
+            },
+            {
+              "id": "ad_event_id",
+              "name": "ad_event_id",
+              "formula": "[events/ad_event_id]"
+            },
+            {
+              "id": "browser",
+              "name": "browser",
+              "formula": "[events/browser]"
+            },
+            {
+              "id": "city",
+              "name": "city",
+              "formula": "[events/city]"
+            },
+            {
+              "id": "country",
+              "name": "country",
+              "formula": "[events/country]"
+            },
+            {
+              "id": "event_type",
+              "name": "event_type",
+              "formula": "[events/event_type]"
+            },
+            {
+              "id": "ip_address",
+              "name": "ip_address",
+              "formula": "[events/ip_address]"
+            },
+            {
+              "id": "latitude",
+              "name": "latitude",
+              "formula": "[events/latitude]"
+            },
+            {
+              "id": "longitude",
+              "name": "longitude",
+              "formula": "[events/longitude]"
+            },
+            {
+              "id": "os",
+              "name": "os",
+              "formula": "[events/os]"
+            },
+            {
+              "id": "referrer_code",
+              "name": "referrer_code",
+              "formula": "[events/referrer_code]"
+            },
+            {
+              "id": "sequence_number",
+              "name": "sequence_number",
+              "formula": "[events/sequence_number]"
+            },
+            {
+              "id": "session_id",
+              "name": "session_id",
+              "formula": "[events/session_id]"
+            },
+            {
+              "id": "state",
+              "name": "state",
+              "formula": "[events/state]"
+            },
+            {
+              "id": "traffic_source",
+              "name": "traffic_source",
+              "formula": "[events/traffic_source]"
+            },
+            {
+              "id": "uri",
+              "name": "uri",
+              "formula": "[events/uri]"
+            },
+            {
+              "id": "user_id",
+              "name": "user_id",
+              "formula": "[events/user_id]"
+            },
+            {
+              "id": "zip",
+              "name": "zip",
+              "formula": "[events/zip]"
+            },
+            {
+              "id": "created",
+              "name": "created",
+              "formula": "[events/created_at]"
+            }
+          ],
+          "metrics": [
+            {
+              "id": "count",
+              "name": "count",
+              "formula": "Count()"
+            }
+          ],
+          "relationships": [
+            {
+              "id": "4fb0b843-c",
+              "targetElementId": "event_session_facts",
+              "keys": [
+                {
+                  "sourceColumnId": "session_id",
+                  "targetColumnId": "session_id"
+                }
+              ],
+              "name": "event_session_facts"
+            },
+            {
+              "id": "091f9af7-4",
+              "targetElementId": "event_session_funnel",
+              "keys": [
+                {
+                  "sourceColumnId": "session_id",
+                  "targetColumnId": "session_id"
+                }
+              ],
+              "name": "event_session_funnel"
+            },
+            {
+              "id": "73d712be-7",
+              "targetElementId": "users",
+              "keys": [
+                {
+                  "sourceColumnId": "user_id",
+                  "targetColumnId": "id"
+                }
+              ],
+              "name": "users"
+            }
+          ],
+          "order": [
+            "id",
+            "ad_event_id",
+            "browser",
+            "city",
+            "country",
+            "event_type",
+            "ip_address",
+            "latitude",
+            "longitude",
+            "os",
+            "referrer_code",
+            "sequence_number",
+            "session_id",
+            "state",
+            "traffic_source",
+            "uri",
+            "user_id",
+            "zip",
+            "created"
+          ]
+        },
+        {
+          "id": "event_session_facts",
+          "kind": "table",
+          "source": {
+            "connectionId": "b4a339ca-32ef-4ea9-a8b8-1525a27322cb",
+            "kind": "sql",
+            "statement": "WITH session_facts AS (\n        SELECT\n           session_id\n          ,COALESCE(cast(user_id as string), ip_address) as identifier\n          ,FIRST_VALUE (created_at) OVER (PARTITION BY session_id ORDER BY created_at ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS session_start\n          ,LAST_VALUE (created_at) OVER (PARTITION BY session_id ORDER BY created_at ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS session_end\n          ,FIRST_VALUE (event_type) OVER (PARTITION BY session_id ORDER BY created_at ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS session_landing_page\n          ,LAST_VALUE (event_type) OVER (PARTITION BY session_id ORDER BY created_at ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS session_exit_page\n        FROM `cloud-training-demos.looker_ecomm.events`\n      )\n      SELECT * FROM session_facts\n      GROUP BY 1, 2, 3, 4, 5, 6"
+          },
+          "name": "event_session_facts",
+          "columns": [
+            {
+              "id": "session_id",
+              "name": "session_id",
+              "formula": "[Custom SQL/session_id]"
+            },
+            {
+              "id": "identifier",
+              "name": "identifier",
+              "formula": "[Custom SQL/identifier]"
+            },
+            {
+              "id": "session_landing_page",
+              "name": "session_landing_page",
+              "formula": "[Custom SQL/session_landing_page]"
+            },
+            {
+              "id": "session_exit_page",
+              "name": "session_exit_page",
+              "formula": "[Custom SQL/session_exit_page]"
+            },
+            {
+              "id": "session_start",
+              "name": "session_start",
+              "formula": "[Custom SQL/session_start]"
+            },
+            {
+              "id": "session_end",
+              "name": "session_end",
+              "formula": "[Custom SQL/session_end]"
+            }
+          ],
+          "metrics": [
+            {
+              "id": "count",
+              "name": "count",
+              "formula": "Count()"
+            }
+          ],
+          "relationships": [],
+          "order": [
+            "session_id",
+            "identifier",
+            "session_landing_page",
+            "session_exit_page",
+            "session_start",
+            "session_end"
+          ]
+        },
+        {
+          "id": "event_session_funnel",
+          "kind": "table",
+          "source": {
+            "connectionId": "b4a339ca-32ef-4ea9-a8b8-1525a27322cb",
+            "kind": "sql",
+            "statement": "SELECT\n          session_id\n        , MIN(\n            CASE WHEN\n              event_type = 'Product'\n              THEN created_at\n              ELSE NULL END\n            ) as event1_time\n        , MIN(\n            CASE WHEN\n              event_type = 'Cart'\n              THEN created_at\n              ELSE NULL END\n            ) as event2_time\n        , MIN(\n            CASE WHEN\n              event_type = 'Purchase'\n              THEN created_at\n              ELSE NULL END\n            ) as event3_time\n      FROM `cloud-training-demos.looker_ecomm.events`\n      GROUP BY 1"
+          },
+          "name": "event_session_funnel",
+          "columns": [
+            {
+              "id": "session_id",
+              "name": "session_id",
+              "formula": "[Custom SQL/session_id]"
+            },
+            {
+              "id": "event1_before_event2",
+              "name": "event1_before_event2",
+              "formula": "[event1_time] < [event2_time]"
+            },
+            {
+              "id": "event2_before_event3",
+              "name": "event2_before_event3",
+              "formula": "[event2_time] < [event3_time]"
+            },
+            {
+              "id": "time_in_funnel",
+              "name": "time_in_funnel",
+              "formula": "datediff(min, [event1_raw],COALESCE([event3_raw],[event2_raw]))"
+            },
+            {
+              "id": "event1",
+              "name": "event1",
+              "formula": "[Custom SQL/event1_time]"
+            },
+            {
+              "id": "event2",
+              "name": "event2",
+              "formula": "[Custom SQL/event2_time]"
+            },
+            {
+              "id": "event3",
+              "name": "event3",
+              "formula": "[Custom SQL/event3_time]"
+            }
+          ],
+          "metrics": [
+            {
+              "id": "count",
+              "name": "count",
+              "formula": "Count()"
+            },
+            {
+              "id": "count_sessions",
+              "name": "count_sessions",
+              "formula": "CountDistinct([session_id])"
+            },
+            {
+              "id": "count_sessions_event1",
+              "name": "count_sessions_event1",
+              "formula": "CountDistinct([session_id])"
+            },
+            {
+              "id": "count_sessions_event12",
+              "name": "count_sessions_event12",
+              "formula": "CountDistinct([session_id])"
+            },
+            {
+              "id": "count_sessions_event123",
+              "name": "count_sessions_event123",
+              "formula": "CountDistinct([session_id])"
+            }
+          ],
+          "relationships": [],
+          "order": [
+            "session_id",
+            "event1_before_event2",
+            "event2_before_event3",
+            "time_in_funnel",
+            "event1",
+            "event2",
+            "event3"
+          ]
+        }
+      ]
+    }
+  ]
+}

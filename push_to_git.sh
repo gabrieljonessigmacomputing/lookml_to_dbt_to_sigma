@@ -9,6 +9,12 @@ RUN_TS="$(date -u +"%Y%m%dT%H%M%SZ")"
 
 echo "Initializing Git repository safely..."
 
+# Update README when pushing (optional)
+if [ -f "./make_readme.sh" ]; then
+  echo "Running make_readme.sh..."
+  bash ./make_readme.sh
+fi
+
 # Initialize only if needed
 if [ ! -d .git ]; then
   git init

@@ -42,21 +42,18 @@ jobs:
       - name: Process each LookML subdirectory
         run: |
           set -a; source .env; set +a
-          
-          for dir in "$LOOKML_DIR"/*/; do
+          mkdir -p out sigma_model
+          for dir in looker_files/*/; do
+            [ ! -d "$dir" ] && continue
             dir=${dir%/}
-            if [ ! -d "$dir" ]; then continue; fi
-            
             model_name=$(basename "$dir")
             echo "=========================================="
             echo "Processing Sigma Model: $model_name"
             echo "=========================================="
-            
             export CURRENT_LOOKML_DIR="$dir"
             export SEMANTIC_MODELS_DIR="$dir/semantic_models"
             export SEMANTIC_MANIFEST_FILE="out/${model_name}_manifest.json"
             export REPORT_FILE="out/${model_name}_report.json"
-            
             if command -v dbtc &>/dev/null; then
               echo "1. Converting LookML -> dbt Semantic Layer"
               ( cd "$dir" && rm -rf semantic_models && dbtc convert-lookml || true )
@@ -72,9 +69,8 @@ jobs:
             else
               echo "dbtc not installed; skipping dbt semantic layer and Node converter (Sigma JSON will still be generated from LookML)."
             fi
-
             echo "5. Generating Sigma JSON from LookML..."
-            python tools/build_sigma_explore_json.py "$CURRENT_LOOKML_DIR" "sigma_model/$model_name"
+            python tools/build_sigma_explore_json.py "$CURRENT_LOOKML_DIR" "sigma_model/$model_name" "$model_name"
           done
 
       - name: Commit and push strictly generated JSON

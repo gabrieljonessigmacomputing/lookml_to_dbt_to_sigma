@@ -1,18 +1,22 @@
 #!/bin/bash
+# Directories: only create if missing (never remove or replace). Files: create or overwrite.
+#
+# NAMING: The sample LookML project is "plugs" — folder looker_files/plugs/, model file plugs.model.lkml.
+# Use this name everywhere (CONNECTIONS.md, .env CONNECTION_ID_PLUGS, make_readme, README). Do not rename.
 
 echo "Creating LookML project directories..."
 
-mkdir -p lookml/plugs_model
+mkdir -p looker_files/plugs/views looker_files/plugs/models
 
 # ==========================================
-# 1. MODEL FILE (Explore)
+# 1. MODEL FILE (Explore) — in models/
 # ==========================================
 echo "Generating Plugs model..."
 
-cat << 'EOF' > lookml/plugs_model/plugs.model.lkml
+cat << 'EOF' > looker_files/plugs/models/plugs.model.lkml
 connection: "snowflake_se_demo"
 
-include: "*.view.lkml"
+include: "../views/*.view.lkml"
 
 explore: f_point_of_sale {
   label: "Plugs Electronics"
@@ -50,7 +54,7 @@ EOF
 echo "Generating view files..."
 
 # --- FACT: POINT OF SALE ---
-cat << 'EOF' > lookml/plugs_model/f_point_of_sale.view.lkml
+cat << 'EOF' > looker_files/plugs/views/f_point_of_sale.view.lkml
 view: f_point_of_sale {
   sql_table_name: RETAIL.PLUGS_ELECTRONICS.F_POINT_OF_SALE ;;
 
@@ -92,7 +96,7 @@ view: f_point_of_sale {
 EOF
 
 # --- FACT: SALES ---
-cat << 'EOF' > lookml/plugs_model/f_sales.view.lkml
+cat << 'EOF' > looker_files/plugs/views/f_sales.view.lkml
 view: f_sales {
   sql_table_name: RETAIL.PLUGS_ELECTRONICS.F_SALES ;;
 
@@ -112,7 +116,7 @@ view: f_sales {
 EOF
 
 # --- DIM: PRODUCT ---
-cat << 'EOF' > lookml/plugs_model/d_product.view.lkml
+cat << 'EOF' > looker_files/plugs/views/d_product.view.lkml
 view: d_product {
   sql_table_name: RETAIL.PLUGS_ELECTRONICS.D_PRODUCT ;;
 
@@ -132,7 +136,7 @@ view: d_product {
 EOF
 
 # --- DIM: STORE ---
-cat << 'EOF' > lookml/plugs_model/d_store.view.lkml
+cat << 'EOF' > looker_files/plugs/views/d_store.view.lkml
 view: d_store {
   sql_table_name: RETAIL.PLUGS_ELECTRONICS.D_STORE ;;
 
@@ -158,7 +162,7 @@ view: d_store {
 EOF
 
 # --- DIM: CUSTOMER ---
-cat << 'EOF' > lookml/plugs_model/d_customer.view.lkml
+cat << 'EOF' > looker_files/plugs/views/d_customer.view.lkml
 view: d_customer {
   sql_table_name: RETAIL.PLUGS_ELECTRONICS.D_CUSTOMER ;;
 
@@ -179,4 +183,4 @@ view: d_customer {
 }
 EOF
 
-echo "Done! LookML files written to lookml/plugs_model."
+echo "Done! LookML files written to looker_files/plugs/ (views/ and models/)."
