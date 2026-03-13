@@ -102,6 +102,47 @@ Then run `create_model.py` (or answer **Y** when setup asks) to create one Sigma
 
 ---
 
+## Environment variables reference
+
+Single reference for all environment variables used by setup, conversion, and `create_model.py`. See also `.env.example` in the repo root.
+
+**Conversion / setup** (used by `tools/build_sigma_explore_json.py` and embedded scripts):
+
+| Variable | Description |
+|----------|-------------|
+| `LOOKML_DIR` | Root directory for LookML (default `lookml`); conversion uses `looker_files/` only. |
+| `MANIFEST_DATABASE` | Warehouse database name for table paths in generated JSON. |
+| `MANIFEST_SCHEMA` | Warehouse schema name for table paths. |
+| `MANIFEST_TABLE_PREFIX` | Optional prefix for table names in manifest. |
+| `MANIFEST_TABLE_SUFFIX` | Optional suffix for table names in manifest. |
+| `CONNECTION_ID_DEFAULT` | Default Sigma warehouse connection ID for all models. |
+| `CONNECTION_ID_<FOLDER>` | Per-project connection (e.g. `CONNECTION_ID_PLUGS` for `looker_files/plugs/`). Folder name in uppercase, hyphens→underscores. |
+| `SIGMA_FOLDER_ID` | Sigma folder ID for created data models. |
+| `API_URL` | Sigma API base URL (e.g. `https://api.sigmacomputing.com/v2`). |
+| `SIGMA_DOMAIN` | Sigma org domain (e.g. `my-org.sigmacomputing.com`). |
+| `API_CLIENT_ID`, `API_SECRET` | Sigma API credentials (used by `create_model.py` if `SIGMA_*` not set). |
+| `MODE`, `USER_FRIENDLY_COLUMN_NAMES`, `TEST_FLAG`, `FROM_CI_CD` | Optional flags written by setup; used by optional workflows. |
+
+**create_model.py** (push JSON to Sigma):
+
+| Variable | Description |
+|----------|-------------|
+| `SIGMA_CLIENT_ID`, `SIGMA_CLIENT_SECRET` | Sigma API credentials (preferred). |
+| `API_CLIENT_ID`, `API_SECRET` | Fallback credentials if `SIGMA_*` not set (e.g. from generated `.env`). |
+| `SIGMA_API_BASE_URL` | Base URL for Sigma API (default `https://api.sigmacomputing.com`). |
+| `CREATE_MODEL_VERBOSE` | When set, print full API response for each created model. |
+
+---
+
+## Troubleshooting
+
+- **Wrong connection for a project** — Ensure `CONNECTION_ID_<FOLDER>` in `.env` uses the folder name in uppercase with hyphens replaced by underscores (e.g. `CONNECTION_ID_PLUGS` for `looker_files/plugs/`). See the table in "Adding another LookML model with its own connection."
+- **Duplicate Sigma models for the same project** — Remove extra LookML project folders so only one folder per logical project exists under `looker_files/` (e.g. keep only `plugs/`, not `plugs_model/` or `plugs_hands_on_labs_data/`).
+- **No models created / no JSON generated** — Run `./regenerate_sigma_json.sh` (or `setup.sh`). Ensure `looker_files/` exists and contains at least one project directory with `.model.lkml` files. If conversion reports "No .model.lkml files found", add a model file under `models/` that defines explores.
+- **Local vs CI:** Local conversion uses only the Python converter (`tools/build_sigma_explore_json.py`). The optional GitHub Actions workflow may use a different path (dbt + Node); behavior and outputs can differ if both are used.
+
+---
+
 ## Summary
 
 | Goal                         | Action |

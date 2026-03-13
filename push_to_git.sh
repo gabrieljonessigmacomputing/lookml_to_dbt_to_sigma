@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+# Purpose: Regenerate README (make_readme.sh), commit all changes, and push to main with force-with-lease.
+# Usage: ./push_to_git.sh (run from repo root)
 
 REPO_URL="https://github.com/gabrieljonessigmacomputing/lookml_to_dbt_to_sigma.git"
 BRANCH="main"

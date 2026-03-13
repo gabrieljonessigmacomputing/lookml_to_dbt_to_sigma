@@ -1,6 +1,10 @@
 #!/bin/bash
-# Directories: only create if missing (never remove or replace). Files: create or overwrite.
+set -euo pipefail
+# Purpose: Create sample LookML project under looker_files/plugs/ (model + views for Plugs Electronics).
+# Usually run by setup.sh; can be run standalone to (re)generate the sample.
+# Usage: ./create_lookml.sh
 #
+# Directories: only create if missing (never remove or replace). Files: create or overwrite.
 # NAMING: The sample LookML project is "plugs" — folder looker_files/plugs/, model file plugs.model.lkml.
 # Use this name everywhere (CONNECTIONS.md, .env CONNECTION_ID_PLUGS, make_readme, README). Do not rename.
 
