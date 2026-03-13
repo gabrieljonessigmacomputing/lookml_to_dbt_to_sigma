@@ -4,7 +4,7 @@
   "schemaVersion": 1,
   "pages": [
     {
-      "id": "da7ed5c4-3",
+      "id": "c8c9ba6f-e",
       "name": "training_ecommerce Canvas",
       "elements": [
         {
@@ -101,7 +101,7 @@
           ],
           "relationships": [
             {
-              "id": "f5d0244d-4",
+              "id": "2c9f59c6-8",
               "targetElementId": "users",
               "keys": [
                 {
@@ -112,7 +112,7 @@
               "name": "users"
             },
             {
-              "id": "9214d870-d",
+              "id": "6bd71f70-1",
               "targetElementId": "inventory_items",
               "keys": [
                 {
@@ -330,7 +330,7 @@
           ],
           "relationships": [
             {
-              "id": "456f6446-8",
+              "id": "ee81cffe-8",
               "targetElementId": "products",
               "keys": [
                 {
@@ -425,7 +425,7 @@
           ],
           "relationships": [
             {
-              "id": "fa4ef1ff-b",
+              "id": "1e6a748c-a",
               "targetElementId": "distribution_centers",
               "keys": [
                 {
@@ -617,7 +617,7 @@
           ],
           "relationships": [
             {
-              "id": "4fb0b843-c",
+              "id": "1582ccb4-6",
               "targetElementId": "event_session_facts",
               "keys": [
                 {
@@ -628,7 +628,7 @@
               "name": "event_session_facts"
             },
             {
-              "id": "091f9af7-4",
+              "id": "77f0c890-a",
               "targetElementId": "event_session_funnel",
               "keys": [
                 {
@@ -639,7 +639,7 @@
               "name": "event_session_funnel"
             },
             {
-              "id": "73d712be-7",
+              "id": "b6839ce8-3",
               "targetElementId": "users",
               "keys": [
                 {
